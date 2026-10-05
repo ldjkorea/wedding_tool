@@ -1,0 +1,41 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+/.contract-test-output/
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment values stay outside Git; only the blank template is tracked.
+.env*
+!.env.example
+# Dedicated local GAS binding and CLI credentials.
+.clasp.local.json
+.clasprc.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# Local Demo admin settings and sessions are never published.
+/.studio-settings-demo/

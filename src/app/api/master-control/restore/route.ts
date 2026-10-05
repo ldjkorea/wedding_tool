@@ -1,0 +1,4 @@
+// Legacy endpoint remains Master-only for existing deployments.
+export const dynamic = 'force-dynamic';
+export const maxDuration = 90;
+export { POST } from '../../studio-control/restore/route';

@@ -1,0 +1,56 @@
+{
+  "name": "wedding-booking-program",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "check:env": "tsx scripts/check-env.ts",
+    "lint": "eslint src scripts --max-warnings 0",
+    "test": "tsx scripts/run-release-tests.ts",
+    "test:red-team": "tsx scripts/run-red-team-tests.ts",
+    "test:acceptance": "tsx scripts/run-contract-acceptance-tests.ts",
+    "typecheck": "tsc --noEmit",
+    "test:hardening": "tsx scripts/run-production-hardening-tests.ts",
+    "test:flow": "tsx scripts/run-contract-flow-regression-tests.ts",
+    "test:white-label": "tsx scripts/run-white-label-regression-tests.ts",
+    "test:browser": "tsx scripts/run-contract-browser-regression-tests.ts",
+    "test:regression": "npm run test:acceptance && npm run test:hardening && npm run test:flow && npm run test:browser",
+    "typecheck:tests": "tsc -p tsconfig.tests.json",
+    "test:settings": "tsx scripts/run-studio-settings-tests.ts",
+    "test:settings-browser": "tsx scripts/run-studio-settings-browser-tests.ts",
+    "test:discount-codes": "tsx scripts/run-discount-code-tests.ts",
+    "test:sheets": "tsx scripts/run-sheet-integration-tests.ts",
+    "test:owner-roles": "tsx scripts/run-owner-role-tests.ts",
+    "test:owner-browser": "tsx scripts/run-owner-browser-tests.ts",
+    "test:calendar": "tsx scripts/run-calendar-integration-tests.ts",
+    "test:bookings": "tsx scripts/run-owner-booking-tests.ts",
+    "test:bookings-browser": "tsx scripts/run-owner-booking-browser-tests.ts",
+    "test:owner-password": "tsx scripts/run-owner-password-tests.ts"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "4.2.1",
+    "lucide-react": "^1.16.0",
+    "next": "15.5.27",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "overrides": {
+    "postcss": "$postcss"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "autoprefixer": "^10.6.1",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.27",
+    "postcss": "8.5.28",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  }
+}
