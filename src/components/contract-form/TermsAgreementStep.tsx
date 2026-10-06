@@ -120,12 +120,12 @@ export const TermsAgreementStep: React.FC<TermsAgreementStepProps> = ({
 
       {/* 1. 핵심 규정 요약 카드 */}
       <div className="bg-white border border-[rgb(var(--studio-border))] rounded-3xl p-6 sm:p-8 space-y-5 shadow-sm">
-        <div className="flex items-center justify-between border-b border-[rgb(var(--studio-surface))] pb-3">
-          <h3 className="font-semibold text-base sm:text-lg text-[rgb(var(--studio-primary))] flex items-center gap-2">
-            <FileText className="w-5 h-5 text-[rgb(var(--studio-muted))]" />
+        <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-[rgb(var(--studio-surface))] pb-3">
+          <h3 className="font-semibold text-base sm:text-lg text-[rgb(var(--studio-primary))] flex items-center gap-2 whitespace-nowrap">
+            <FileText className="w-5 h-5 shrink-0 text-[rgb(var(--studio-muted))]" />
             <span>핵심 계약 규정 요약</span>
           </h3>
-          <span className="text-xs text-[rgb(var(--studio-muted))]">
+          <span className="text-xs break-all text-[rgb(var(--studio-muted))]">
             약관 버전: {CONTRACT_POLICY_CONFIG.version}
           </span>
         </div>

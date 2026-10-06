@@ -7,6 +7,19 @@ export async function exerciseMobileCustomer(page: any, h: ReturnType<typeof ins
   const schema = getFormSchema();
   async function fill(invalidChecks: boolean) {
     await page.goto(baseUrl);
+    const summaryHeading = page.getByRole('heading', { name: '핵심 계약 규정 요약', exact: true });
+    await summaryHeading.waitFor();
+    const titleBox = await summaryHeading.evaluate((element: HTMLElement) => ({
+      height: element.getBoundingClientRect().height,
+      bottom: element.getBoundingClientRect().bottom,
+      lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+    }));
+    assert.ok(titleBox.height <= titleBox.lineHeight + 2, 'Terms summary title stays on one readable line');
+    if (page.viewportSize().width < 640) {
+      const version = await page.getByText(/^약관 버전:/).boundingBox();
+      assert.ok(version && version.y >= titleBox.bottom, 'Mobile policy version sits below the title');
+    }
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Mobile terms must not require horizontal scrolling');
     await page.getByRole('button', { name: /전체 펼쳐보기/ }).click();
     await page.locator('.overflow-y-auto').evaluate((element: HTMLElement) => { element.scrollTop = element.scrollHeight; element.dispatchEvent(new Event('scroll', { bubbles: true })); });
     await page.getByText('본식스냅 계약 약관 및 운영 정책의 내용을 모두 확인하였으며 이에 동의합니다.', { exact: false }).click();
