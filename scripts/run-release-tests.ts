@@ -43,6 +43,7 @@ function suite(relative: string, minimum: number) {
 async function main() {
   await run('performance', 'test:page-cache');
   await run('performance', 'test:login-bootstrap');
+  await run('performance', 'test:gas-latency');
   for (const client of ['dear-memory', 'moment-studio']) {
     const name = client === 'dear-memory' ? 'dearMemoryConfiguration' : 'momentStudioConfiguration';
     fs.writeFileSync(selector, "import { " + name + " } from './clients/" + client + "';\nexport const clientConfiguration = " + name + ";\n");

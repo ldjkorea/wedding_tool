@@ -302,11 +302,12 @@ function measured_settingsPointer(payload) {
   return pointer;
 }
 function settingsFolder() { return providerStep("drive_folder", function() { return measured_settingsFolder(); }); }
-function measured_settingsFolder() {
+function settingsFolderId() {
   const id = setting("STUDIO_SETTINGS_FOLDER_ID");
   if (id === setting("CONTRACTS_FOLDER_ID")) throw new Error("Configuration invalid: STUDIO_SETTINGS_FOLDER_ID");
-  return DriveApp.getFolderById(id);
+  return id;
 }
+function measured_settingsFolder() { return DriveApp.getFolderById(settingsFolderId()); }
 function readSettingsEntry(payload, entry) { return providerStep("settings_read", function() { return measured_readSettingsEntry(payload, entry); }); }
 function measured_readSettingsEntry(payload, entry) {
   if (!entry || !entry.fileId) throw new Error("Unknown revision");
@@ -411,7 +412,7 @@ function enforceOwnerSettings(previous, next) {
 function settingsAction(action, payload) {
   settingsKey(payload);
   // Require deployment configuration even at bootstrap; no unexpected contract-folder fallback.
-  settingsFolder();
+  settingsFolderId();
   // HMAC-authenticated server only. Never included in runtime/business revisions.
   if (action === "admin_owner_credential_read") {
     if (Object.keys(payload).some(function(key) { return key !== "studioId"; })) throw new Error("Unauthorized admin");
