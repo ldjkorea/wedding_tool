@@ -57,10 +57,9 @@ export function validateClientConfiguration(config: ClientConfiguration): Client
     if (reservedKind && reservedKind !== discount.eligibility.kind) throw new Error('업체 설정 오류: 할인 ID와 조건의 충돌');
     for (const order of [discount.displayOrder, discount.catalogOrder]) if (order !== undefined && !Number.isFinite(order)) throw new Error('업체 설정 오류: 할인 순서');
     if (!allowedConditions.includes(discount.eligibility.kind) || !['immediate', 'cashback'].includes(discount.type)) throw new Error('업체 설정 오류: 할인 조건/유형');
-    if (conditions.has(discount.eligibility.kind)) throw new Error('업체 설정 오류: 같은 할인 조건의 중복');
-    conditions.add(discount.eligibility.kind);
+    if (discount.active && conditions.has(discount.eligibility.kind)) throw new Error('업체 설정 오류: 같은 할인 조건의 중복');
+    if (discount.active) conditions.add(discount.eligibility.kind);
     if (discount.eligibility.kind === 'weekday' && (!Number.isInteger(discount.eligibility.weekday) || discount.eligibility.weekday! < 0 || discount.eligibility.weekday! > 6)) throw new Error('업체 설정 오류: 할인 요일');
-    if (discount.eligibility.kind.startsWith('review_') && discount.type !== 'cashback') throw new Error('업체 설정 오류: 후기 혜택은 추후 Cashback이어야 합니다.');
   }
   const policy = config.contractPolicy;
   amount(policy.deposit.amount, '계약금');
@@ -146,7 +145,8 @@ export function getDiscounts(snapshot?: ContractSnapshot, channel?: 'catalog'): 
 }
 export function getDiscountById(id: string, snapshot?: ContractSnapshot): DiscountItem & DiscountConfig | undefined {
   const items = snapshot ? historical(snapshot, snapshot.discounts, getConfigurationRuntime().config.compatibility?.snapshots?.discounts) : getConfigurationRuntime().discounts;
-  const item = items.find(item => item.id === id) || items.find(item => item.eligibility.kind === (id === 'sunday' ? 'weekday' : id));
+  const kind = id === 'sunday' ? 'weekday' : id;
+  const item = items.find(item => item.active && item.eligibility.kind === kind) || items.find(item => item.id === id) || items.find(item => item.eligibility.kind === kind);
   return item ? { ...item, isImmediate: item.type === 'immediate', requiresPartnerName: item.eligibility.kind === 'partner' } : undefined;
 }
 export function getDiscountAmount(id: string, pricing?: PriceCalculationResult): number {

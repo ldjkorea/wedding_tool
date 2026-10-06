@@ -104,7 +104,7 @@ async function main() {
       s => s.studioConfig.representativeEmail = 'bad-email', s => s.studioConfig.website = 'javascript:alert(1)',
       s => s.studioConfig.logo = 'data:image/svg+xml;base64,PHN2Zz4=', s => s.studioConfig.seal = 'https://tracking.fixture.com/x.png',
       s => s.contractPolicy.deposit.amount = 100000000, s => s.discountsConfig[0].amount = -1,
-      s => s.discountsConfig[0].amount = 100000000, s => s.discountsConfig.at(-1).type = 'immediate',
+      s => s.discountsConfig[0].amount = 100000000, s => s.discountsConfig.at(-1).type = 'invalid-timing',
       s => s.productsConfig.forEach((p: any) => p.active = false), s => s.formSchema.weddingHall.enabled = false,
       s => s.contractPolicy.terms = [], s => s.contractPolicy.terms[0].content = '',
       s => s.productsConfig.pop(), s => s.APP_SECRET = 'INJECTED_SECRET',

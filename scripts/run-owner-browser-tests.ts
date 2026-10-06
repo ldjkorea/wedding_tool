@@ -87,20 +87,19 @@ async function main() {
     await page.screenshot({ path: path.join(artifacts, 'owner-long-error-layout.png'), fullPage: true });
     await page.unroute('**/api/owner-control/calendar-integration'); await page.setViewportSize({ width: 1440, height: 1000 });
   });
-  await test('Delayed pre-login read cannot overwrite authenticated edits or clear the new session', async () => {
+  await test('Initial session load shows progress instead of flashing a second login form', async () => {
     let first = true, heldRoute: any, heldResponse: any, release: () => void = () => {};
     const captured = new Promise<void>(resolve => { release = resolve; });
     await page.route('**/api/owner-control/settings', async (route: any) => {
       if (first && route.request().method() === 'GET') { first = false; heldRoute = route; heldResponse = await route.fetch(); release(); } else await route.continue();
     });
     await page.goto(origin + '/studio-control'); await captured;
-    await page.getByLabel('대표 비밀번호').fill(password); await page.getByRole('button', { name: '로그인', exact: true }).click(); await page.getByRole('button', { name: '상품 관리', exact: true }).waitFor(); await menu('상품 관리');
-    await page.getByLabel('상품 가격', { exact: true }).fill(String(getProducts()[0].basePrice + 200000));
-    const receipt = page.waitForResponse((response: any) => response.url().endsWith('/api/owner-control/settings') && response.request().method() === 'GET');
-    await heldRoute.fulfill({ response: heldResponse }); await receipt;
-    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    assert.equal(Number(await page.getByLabel('상품 가격', { exact: true }).inputValue()), getProducts()[0].basePrice + 200000);
-    assert.equal(await page.getByRole('button', { name: '로그아웃', exact: true }).count(), 1);
+    assert.equal(await page.getByLabel('대표 비밀번호').count(),0);
+    await page.getByRole('status').filter({hasText:'로그인 상태와 운영 설정'}).waitFor();
+    await heldRoute.fulfill({response:heldResponse});
+    await page.getByRole('button',{name:'상품 관리',exact:true}).waitFor(); await menu('상품 관리');
+    await page.getByLabel('상품 가격',{exact:true}).fill(String(getProducts()[0].basePrice+200000));
+    assert.equal(Number(await page.getByLabel('상품 가격',{exact:true}).inputValue()),getProducts()[0].basePrice+200000);
     await page.unroute('**/api/owner-control/settings'); await page.getByLabel('상품 가격', { exact: true }).fill(String(getProducts()[0].basePrice));
   });
   await test('Price input has immediate formatted preview and invalid integer warning', async () => {
@@ -123,9 +122,9 @@ async function main() {
     await menu('할인코드 관리'); await page.getByRole('button', { name: '+ 할인코드 추가', exact: true }).click(); await page.getByLabel('할인코드', { exact: true }).fill(' friend50 '); await page.getByLabel('할인 / 혜택 금액', { exact: true }).fill('50000'); await page.getByLabel('사용 여부').check(); await save(); assert.equal(state().current.settings.partnerCodes[0].code, 'FRIEND50'); assert.equal(state().current.settings.partnerCodes[0].amount, 50000);
     await page.screenshot({ path: path.join(artifacts, 'owner-discount-codes.png'), fullPage: true }); await page.getByLabel('사용 여부').uncheck(); await save(); assert.equal(state().current.settings.partnerCodes[0].active, false);
   });
-  await test('Options and benefits edit through operational UI without eligibility controls', async () => {
+  await test('Options and benefits expose safe condition and timing controls', async () => {
     await menu('옵션 관리'); await page.getByLabel('옵션 가격', { exact: true }).fill('150000'); await save(); assert.equal(state().current.settings.optionsConfig[0].price, 150000);
-    await menu('할인 관리'); await page.getByLabel('할인 / 혜택 금액', { exact: true }).fill('60000'); await save(); assert.equal(state().current.settings.discountsConfig[0].amount, 60000); assert.equal(await page.locator('select').count(), 0);
+    await menu('할인 관리'); await page.getByLabel('할인 / 혜택 금액', { exact: true }).fill('60000'); await save(); assert.equal(state().current.settings.discountsConfig[0].amount, 60000); assert.equal(await page.getByLabel('적용 방식', {exact:true}).count(), 1); assert.equal(await page.getByRole('button',{name:'+ 혜택 추가',exact:true}).count(),1); assert.equal(await page.getByRole('button',{name:'이 항목 제거',exact:true}).count(),1);
   });
   await test('Owner Calendar ON/create/duration/OFF persists separately with readable preview', async () => {
     await menu('Google Calendar 설정'); const toggle = page.getByRole('checkbox', { name: 'Google Calendar 사용', exact: true }); await toggle.waitFor(); const revision = state().current.revision;
@@ -137,7 +136,7 @@ async function main() {
     page.once('dialog', (dialog: any) => dialog.accept()); await toggle.click(); await page.getByText('사용 안 함', { exact: true }).waitFor(); assert.equal(state().current.revision, revision); assert.ok(JSON.parse(fs.readFileSync(calendarFile,'utf8')).name);
   });
   await test('Owner Sheets ON/create/OFF remains independent and clearly identifies local simulation', async () => {
-    await menu('Google Sheets 설정'); const toggle = page.getByRole('checkbox', { name: 'Google Sheets 계약목록 사용' }); await toggle.waitFor(); const revision = state().current.revision;
+    await menu('Google Sheets 설정'); const toggle = page.getByRole('checkbox', { name: '자동 동기화 사용 (기본 OFF)' }); await toggle.waitFor(); const revision = state().current.revision;
     page.once('dialog', (dialog: any) => dialog.accept()); await toggle.click(); await page.getByRole('button', { name: '새 계약관리 Sheet 만들기' }).waitFor(); await page.getByRole('button', { name: '새 계약관리 Sheet 만들기' }).click(); await page.getByText('사용함 / 정상 연결', { exact: true }).waitFor(); assert.equal(state().current.revision, revision);
     assert.match(await page.locator('main').innerText(), /실제 Google 파일은 만들지 않습니다/); assert.ok(!/revision|Snapshot|Record|Spreadsheet ID|GAS|Folder ID|Sync ID/i.test(await page.locator('main').innerText())); await page.screenshot({ path: path.join(artifacts, 'owner-google-sheets.png'), fullPage: true });
     page.once('dialog', (dialog: any) => dialog.accept()); await toggle.click(); await page.getByText('사용 안 함', { exact: true }).waitFor(); assert.equal(state().current.revision, revision);

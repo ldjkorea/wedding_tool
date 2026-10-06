@@ -54,6 +54,13 @@ export async function demoSheetCall(action: string, payload: Record<string,unkno
     } else if (action==='sheet_create') {
       if (!state.enabled) throw new Error('Integration disabled');
       if (!state.name) { if (payload.expectedRevision!==state.revision) throw Object.assign(new Error('Conflict'),{code:'SETTINGS_CONFLICT'}); state.name=String(displayName)+' 계약관리';state.createdAt=new Date().toISOString();state.revision++; }
+    } else if (action==='sheet_read') {
+      if (!state.name) throw new Error('No Sheet');
+      return {success:true,integration:{...status(state),previewRows:Object.values(state.rows).slice(0,50).map(row=>[row.contractNumber,row.weddingDate,row.groomName,row.brideName,row.product,String(row.contractTotal),row.status])}};
+    } else if (action==='sheet_sync') {
+      if (!state.enabled || !state.name) throw new Error('Integration disabled');
+      for (const [id,row] of Object.entries(state.source)) {state.rows[id]=row;delete state.jobs[id];}
+      return {success:true,integration:{...status(state),queuedCount:Object.keys(state.source).length,syncCursor:null}};
     } else if (action==='sheet_retry') {
       const id=String(payload.contractId); if (!state.enabled || !state.name || !state.jobs[id] || !state.source[id]) throw new Error('No retryable local mirror job');
       state.rows[id]=state.source[id];delete state.jobs[id];

@@ -17,7 +17,7 @@ import { POST as submit } from '../src/app/api/submit-contract/route';
 import { POST as approve } from '../src/app/api/approve-and-send/route';
 import { withRuntimeConfiguration } from '../src/services/serverRuntimeConfiguration';
 import { configurationBinding, snapshotBinding } from '../src/lib/contractWorkflow';
-import { getStudioConfig, getProducts, getClientContent, getConfigurationRuntime } from '../src/services/configuration';
+import { getStudioConfig, getProducts, getClientContent, getConfigurationRuntime, getDiscountById } from '../src/services/configuration';
 import { calculateContractPrice } from '../src/lib/pricing';
 import { generateCustomerContractEmail } from '../src/lib/emailTemplates';
 import { ContractDocument } from '../src/components/pdf/ContractDocument';
@@ -104,8 +104,25 @@ async function main() {
     assert.equal((await owrite(data.settings, data.version)).status, 200); const after = await ohead(); assert.match(after.settings.products.at(-1).id, /^product_[a-f0-9-]{36}$/); assert.match(after.settings.options.at(-1).id, /^option_[a-f0-9-]{36}$/);
     for (const section of ['products','options','codes','discounts']) { const changed = structuredClone(after.settings); changed[section].pop(); assert.equal((await owrite(changed, after.version)).status, 400); }
   });
-  await test('Owner cannot alter discount eligibility/type or raw structural labels', async () => {
+  await test('Owner rejects invalid discount eligibility/type and raw structural labels', async () => {
     const data = await ohead(); for (const key of ['eligibility','type','labels','pricingName']) { const changed = structuredClone(data.settings); changed.discounts[0][key] = 'attacker'; assert.equal((await owrite(changed, data.version)).status, 400); }
+  });
+  await test('Owner replaces a retired benefit, chooses timing, and never changes the frozen contract', async () => {
+    const before = await ohead(), changes = structuredClone(before.settings);
+    const prior = changes.discounts.find((rule: {eligibility: {kind: string}}) => rule.eligibility.kind === 'portfolio');
+    prior.active = false;
+    changes.discounts.push({name:'새 사진사용 혜택',amount:10000,type:'immediate',eligibility:{kind:'portfolio'},description:'TEST',active:true});
+    assert.equal((await owrite(changes,before.version)).status,200);
+    const immediate = await withRuntimeConfiguration(async () => calculateContractPrice({productId:getProducts()[0].id,portfolioConsent:true}));
+    const head = await ohead(); head.settings.discounts.at(-1).type = 'cashback';
+    assert.equal((await owrite(head.settings,head.version)).status,200);
+    const cashback = await withRuntimeConfiguration(async () => calculateContractPrice({productId:getProducts()[0].id,portfolioConsent:true}));
+    assert.equal(cashback.contractTotal,immediate.contractTotal+10000); assert.equal(cashback.futureCashbackTotal,10000);
+    await withRuntimeConfiguration(async () => { assert.equal(getDiscountById('portfolio',{...frozen.snapshot,discounts:getConfigurationRuntime().discounts})?.name,'새 사진사용 혜택'); });
+    assert.equal(JSON.stringify(h.stored(sentContract.contractId).snapshot),frozenSnapshot);
+    const restoreHead=await ohead(); restoreHead.settings.discounts.at(-1).active=false;
+    const old=restoreHead.settings.discounts.find((rule: {id:string})=>rule.id===prior.id); old.active=before.settings.discounts.find((rule:{id:string})=>rule.id===prior.id).active;
+    assert.equal((await owrite(restoreHead.settings,restoreHead.version)).status,200);
   });
   await test('Bad money, duplicate codes and unsafe deposits fail without new revision', async () => {
     const data = await ohead(); for (const amount of [-1, 0.5, 100000001, null]) { const changed = structuredClone(data.settings); changed.products[0].price = amount; assert.equal((await owrite(changed, data.version)).status, 400); }
@@ -138,6 +155,15 @@ async function main() {
     assert.equal((await sheetsApi.PUT(request('PUT', { enabled: true, expectedRevision: 0 }))).status, 200);
     assert.equal((await sheetsApi.POST(request('POST', { operation: 'create', expectedRevision: 1 }))).status, 200); assert.equal(sheets.books.size, 1);
     assert.equal((await sheetsApi.PUT(request('PUT', { enabled: false, expectedRevision: 2, spreadsheetId: 'attacker' }))).status, 400);
+    const mails = h.deliveries.length;
+    const sync = await sheetsApi.POST(request('POST',{operation:'sync'})); assert.equal(sync.status,200,await sync.clone().text());
+    h.context.contractSheetWorker();
+    const preview = await sheetsApi.POST(request('POST',{operation:'read'})); assert.equal(preview.status,200);
+    const savedRows = (await preview.json()).integration.previewRows; assert.ok(savedRows.length >= 1); assert.equal(savedRows[0].length,7);
+    const rowCount = sheets.book().cells.length; sheets.book().cells[1][14] = 1;
+    assert.equal((await sheetsApi.POST(request('POST',{operation:'sync'}))).status,200); h.context.contractSheetWorker();
+    assert.equal(sheets.book().cells.length,rowCount); assert.notEqual(sheets.book().cells[1][14],1);
+    assert.equal(h.deliveries.length,mails); assert.equal(JSON.stringify(h.stored(sentContract.contractId).snapshot),frozenSnapshot);
     const state = (await (await sheetsApi.GET(request())).json()).integration;
     assert.equal((await sheetsApi.PUT(request('PUT', { enabled: false, expectedRevision: state.revision }))).status, 200); assert.equal((await ohead()).version, before.version); assert.equal(await withRuntimeConfiguration(async () => configurationBinding()), binding); assert.equal(sheets.books.size, 1);
   });
@@ -148,7 +174,11 @@ async function main() {
   });
   await test('Old sent Snapshot, PDF file bytes and email remain identical after both roles and restore', async () => {
     assert.equal(JSON.stringify(h.stored(sentContract.contractId).snapshot), frozenSnapshot);
-    for (const [id, bytes] of frozenFiles) assert.equal(h.files.get(id)!.bytes.toString('base64'), bytes);
+    for (const [id, bytes] of frozenFiles) {
+      const file = h.files.get(id)!;
+      if (file.name.endsWith('.json')) { const before=JSON.parse(Buffer.from(bytes,'base64').toString('utf8')), after=JSON.parse(file.bytes.toString('utf8')); delete before.sheetSync; delete after.sheetSync; assert.ok(JSON.stringify(after)===JSON.stringify(before),'Only Sheet integration metadata may change'); }
+      else assert.ok(file.bytes.toString('base64')===bytes,'Frozen document bytes remain unchanged');
+    }
     await withRuntimeConfiguration(async () => {
       assert.equal(snapshotBinding(frozen.snapshot), frozen.snapshotHash);
       assert.deepEqual(generateCustomerContractEmail(frozen.snapshot.data, frozen.snapshot.pricing, frozen.snapshot.contractNumber, frozen.snapshot), frozenMail);

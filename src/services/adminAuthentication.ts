@@ -51,14 +51,15 @@ export async function loginAdmin(password: unknown, role: AdminRole = 'master'):
   await signedGasCall('admin_login', { sessionId: sessionId(raw, role, hash), role, ...(credential ? { credentialRevision: credential.revision } : {}) });
   return raw;
 }
-export async function requireAdmin(req: NextRequest, role: AdminRole = 'master'): Promise<string> {
+export async function requireAdmin(req: NextRequest, role: AdminRole = 'master', checkedByAction = false): Promise<string> {
   requireSettingsEnabled();
   const raw = req.cookies.get(role === 'owner' ? OWNER_COOKIE : ADMIN_COOKIE)?.value;
   if (!raw || !/^[a-f0-9]{64}$/.test(raw)) throw new AdminUnauthorized('관리자 인증이 필요합니다.');
   const credential = role === 'owner' ? await readOwnerCredential() : null;
   if (credential) ensureOwnerCredentialReady(credential);
   const id = sessionId(raw, role, credential?.hash || validateAdminPasswordHash(role));
-  await signedGasCall('admin_session', { sessionId: id, role });
+  // owner_read/owner_bookings revalidate the session within their own GAS action.
+  if (!checkedByAction) await signedGasCall('admin_session', { sessionId: id, role });
   return id;
 }
 export async function logoutAdmin(req: NextRequest, role: AdminRole = 'master') {

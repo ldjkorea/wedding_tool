@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 export async function GET(req: NextRequest) {
   try {
-    const sessionId = await requireAdmin(req, 'owner');
+    const sessionId = await requireAdmin(req, 'owner', true);
     const cursor = req.nextUrl.searchParams.get('cursor');
     if (cursor && cursor.length > 2000)
       throw new Error('설정 검증: 목록 조회 정보를 확인해 주세요.');

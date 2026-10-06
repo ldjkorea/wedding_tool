@@ -253,7 +253,7 @@ function validatePartner(payload) {
   const pointer = settingsPointer(payload);
   if (!pointer.revision) return { success: true, valid: false, code: code, discountAmount: 0 };
   const settings = readSettingsEntry(payload, pointer).settings;
-  const rule = settings.discountsConfig.find(function(item) { return item.eligibility.kind === "partner"; });
+  const rule = settings.discountsConfig.find(function(item) { return item.active && item.eligibility.kind === "partner"; });
   const match = (settings.partnerCodes || []).find(function(item) { return item.active && item.code === code; });
   const valid = !!(rule && rule.active && rule.type === "immediate" && match && Number.isSafeInteger(match.amount) && match.amount > 0);
   return { success: true, valid: valid, code: code, discountAmount: valid ? match.amount : 0 };
@@ -263,7 +263,7 @@ function assertPartnerPayload(data, pricing, studioId) {
   const result = validatePartner({ studioId: studioId, code: data.partnerName });
   if (!result.valid || data.partnerName !== result.code || data.partnerDiscountAmount !== result.discountAmount) throw new Error("Invalid partner discount");
   const settings = readSettingsEntry({ studioId: studioId }, settingsPointer({ studioId: studioId })).settings;
-  const rule = settings.discountsConfig.find(function(item) { return item.eligibility.kind === "partner"; });
+  const rule = settings.discountsConfig.find(function(item) { return item.active && item.eligibility.kind === "partner"; });
   const line = pricing.breakdown.find(function(item) { return item.policyId === rule.id; });
   if (!line || line.category !== "immediate_discount" || line.amount !== -result.discountAmount) throw new Error("Invalid partner price");
 }
@@ -352,7 +352,7 @@ function enforceOwnerSettings(previous, next) {
   const fields = {
     productsConfig: ["name","price","description","subtitle","includedItems","retouchedCount","additionalRetouchedCount","originalCount","albumSpec","coupleAlbumSummary","parentAlbumSummary","active","displayOrder"],
     optionsConfig: ["name","price","description","active","displayOrder"],
-    discountsConfig: ["name","amount","description","active"],
+    discountsConfig: ["name","amount","description","active","type","eligibility"],
     partnerCodes: ["code","amount","active"]
   };
   Object.keys(previous).concat(Object.keys(next)).forEach(function(key) {
@@ -365,8 +365,11 @@ function enforceOwnerSettings(previous, next) {
       if (!item || typeof item.id !== "string" || seen[item.id]) throw new Error("Unauthorized admin");
       seen[item.id] = true;
       const before = old.find(function(entry) { return entry.id === item.id; });
+      if (key === "discountsConfig") {
+        if (!item.eligibility || ["weekday","partner","portfolio","review_contract","review_main"].indexOf(item.eligibility.kind) < 0 || ["immediate","cashback"].indexOf(item.type) < 0 || (item.eligibility.kind === "partner" && item.type !== "immediate") || (before && item.eligibility.kind !== before.eligibility.kind)) throw new Error("Unauthorized admin");
+      }
       if (!before) {
-        if (key === "discountsConfig" || Object.keys(item).some(function(field) { return field !== "id" && fields[key].indexOf(field) < 0; })) throw new Error("Unauthorized admin");
+        if (Object.keys(item).some(function(field) { return field !== "id" && fields[key].indexOf(field) < 0; })) throw new Error("Unauthorized admin");
         return;
       }
       const expected = JSON.parse(JSON.stringify(before));
@@ -559,6 +562,29 @@ function sheetAdminAction(action, payload) {
     });
   } else if (action === "sheet_create") {
     return createContractSheet(payload);
+  } else if (action === "sheet_read") {
+    const tab = openContractSheet(config).tab;
+    const rows = tab.getLastRow() > 1 ? tab.getRange(2, 1, Math.min(50, tab.getLastRow() - 1), CONTRACT_SHEET_HEADERS.length).getValues() : [];
+    const response = contractSheetStatus(config);
+    response.integration.previewRows = rows.map(function(row) { return [0,2,6,7,10,14,18].map(function(index) { return String(row[index]).slice(0,2000); }); });
+    return response;
+  } else if (action === "sheet_sync") {
+    if (!config.enabled) throw new Error("Integration disabled");
+    openContractSheet(config); ensureContractSheetWorker();
+    const batch = sheetStateTransaction(function() {
+      requireAdminSession(payload);
+      if (!readSheetConfig(payload.studioId).enabled) throw new Error("Integration disabled");
+      const page = contractRecordPage(payload.cursor, 30); let queued = 0;
+      page.records.forEach(function(stored) {
+        if (!stored.value.studio || stored.value.studio.studioId !== payload.studioId) return;
+        if (!stored.value.sheetSync || ["pending","working"].indexOf(stored.value.sheetSync.status) < 0) { queueContractSheet(stored.value); saveRecord(stored); }
+        queued++;
+      });
+      return { count: queued, cursor: page.nextCursor };
+    });
+    const response = contractSheetStatus(config);
+    response.integration.queuedCount = batch.count; response.integration.syncCursor = batch.cursor;
+    return response;
   } else if (action === "sheet_retry") {
     if (!config.enabled) throw new Error("Integration disabled");
     openContractSheet(config); ensureContractSheetWorker();

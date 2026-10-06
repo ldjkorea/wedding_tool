@@ -21,6 +21,9 @@ export async function PUT(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     adminOrigin(req); const session = await requireAdmin(req, 'owner'), body = await readJsonRequest(req, 4096);
+    if (['read', 'sync'].includes(body.operation) && Object.keys(body).every(key => ['operation','cursor'].includes(key)) && (body.cursor === undefined || (typeof body.cursor === 'string' && body.cursor.length <= 2000))) {
+      return NextResponse.json({ success: true, integration: await sheetIntegrationCall(body.operation, session, body.cursor ? {cursor: body.cursor} : {}) }, {headers: adminHeaders});
+    }
     if (body.operation === 'create' && Object.keys(body).every(key => ['operation','expectedRevision'].includes(key)) && Number.isSafeInteger(body.expectedRevision) && body.expectedRevision >= 0) {
       return NextResponse.json({ success: true, integration: await sheetIntegrationCall('create', session, { expectedRevision: body.expectedRevision }) }, { headers: adminHeaders });
     }

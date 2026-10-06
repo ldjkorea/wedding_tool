@@ -41,8 +41,8 @@ export function SheetIntegrationSettings({ api, owner = false }: { api: AdminApi
         const enabled = event.target.checked;
         if (!window.confirm(enabled ? '고객명·예식일·연락처·이메일 등을 비공개 계약목록에 기록하도록 사용할까요?' : '자동 동기화를 중지할까요? 기존 Sheet와 계약 자료는 그대로 남습니다.')) return;
         perform(async () => { const response = await api('sheet-integration', 'PUT', { enabled, expectedRevision: state.revision }); setState(response.integration!); setMessage(enabled ? '계약목록 사용 설정을 저장했습니다.' : '자동 동기화를 중지했습니다. 기존 자료는 유지됩니다.'); });
-      }} /> Google Sheets 계약목록 사용</label>
-      <p className="integration-help">예약 목록을 함께 확인할 때 사용합니다. 사용을 중지해도 기존 Sheet는 남습니다. 상품·약관 설정에는 영향을 주지 않습니다.</p></div>
+      }} /> 자동 동기화 사용 (기본 OFF)</label>
+      <p className="integration-help">접수·승인·발송 결과를 자동으로 반영합니다. Google 작업이 보통 약 1분 간격으로 처리하므로 즉시 표시되지 않을 수 있습니다. 사용을 중지해도 기존 Sheet는 남습니다. 상품·약관 설정에는 영향을 주지 않습니다.</p></div>
       <div className="integration-panel integration-controls"><p className="integration-status"><span>연결 상태</span><span className="integration-badge" data-state={state.connection}>{connectionNames[state.connection]}</span></p>
         {state.name && <p className="mt-2"><strong>Sheet:</strong> <span>{state.name}</span></p>}
         {state.createdAt && <p className="mt-1 text-sm">생성일: {new Date(state.createdAt).toLocaleString('ko-KR')}</p>}
@@ -53,6 +53,11 @@ export function SheetIntegrationSettings({ api, owner = false }: { api: AdminApi
         {state.url && <a href={state.url} target="_blank" rel="noopener noreferrer" className="admin-button">Google Sheets에서 열기</a>}
         {state.enabled && !state.workerReady && <p role="alert" className="mt-2 text-red-700">자동 동기화 작업이 없습니다. 사용 설정을 다시 저장해 작업을 등록하거나 실행 계정 권한을 확인해 주세요.</p>}
       </div></div>
+      {owner && <section className="integration-panel space-y-4"><h3 className="font-semibold">목록 저장 · 불러오기 · 복구</h3><p className="integration-help">계약 원본은 Google Drive의 접수 내역·확정 계약 내용이며 계약서 교부 시 PDF도 자동 보관합니다. Sheet는 조회용 사본입니다. 시트 수정값으로 계약서를 덮어쓰지 않습니다. 같은 Google 계정의 자료이므로 독립된 3중 백업은 아닙니다.</p>
+        <div className="flex flex-wrap gap-3"><button className="admin-button" disabled={busy || !state.name} onClick={() => perform(async () => {const response = await api('sheet-integration','POST',{operation:'read'});setState(response.integration!);setMessage('Google Sheets에 저장된 목록을 불러왔습니다. 최대 50건 미리보기입니다.');})}>시트 목록 불러오기</button>
+        <button className="admin-button admin-primary" disabled={busy || !state.enabled || !state.name} onClick={() => {if (!window.confirm('계약 원본을 기준으로 Sheet 목록을 저장·복구할까요? 시트에서 직접 편집한 목록 값은 원본 값으로 돌아갑니다. 확정 계약서는 변경되지 않습니다.')) return; perform(async () => {const response = await api('sheet-integration','POST',{operation:'sync',...(state.syncCursor ? {cursor:state.syncCursor} : {})});setState(response.integration!);setMessage(String(response.integration!.queuedCount || 0)+'건의 저장·복구를 요청했습니다. 자동 작업 후 동기화 상태를 확인하세요.');});}}>{state.syncCursor ? '다음 계약 저장·복구' : '원본에서 시트 저장·재동기화'}</button></div>
+        {state.previewRows && <div className="overflow-x-auto"><table className="w-full text-sm text-left"><caption className="text-left py-3">실제 Sheet 저장 내용 (최대 50건)</caption><thead><tr>{['계약번호','예식일','신랑','신부','상품','금액','상태'].map(label=><th key={label} className="p-2 border-b">{label}</th>)}</tr></thead><tbody>{state.previewRows.map((row,i)=><tr key={i}>{row.map((cell,j)=><td key={j} className="p-2 border-b">{cell}</td>)}</tr>)}</tbody></table>{!state.previewRows.length && <p className="p-3">저장된 계약이 없습니다.</p>}</div>}
+      </section>}
       <section className="integration-panel"><div className="integration-status"><h3 className="font-semibold">동기화 상태</h3><button className="admin-button" disabled={busy} onClick={() => perform(load)}>동기화 상태 확인</button></div>
         <p className="integration-summary mt-3">조회한 계약 중 동기화 오류 {state.counts.failed + state.counts.unknown}건 · 대기 {state.counts.pending}건 · 완료 {state.counts.synced}건</p>
         <p className="integration-help mt-3">오류가 있어도 계약 접수와 발송 결과는 유지됩니다. 고객에게 다시 제출하도록 안내하지 마세요.</p>

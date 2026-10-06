@@ -179,7 +179,7 @@ async function main() {
     await page.getByRole('region', { name: 'Google Sheets 계약목록', exact: true }).getByText('사용 안 함', { exact: true }).waitFor();
     assert.equal(await page.getByText('Spreadsheet ID', { exact: true }).count(), 0);
     page.on('dialog', (dialog: any) => dialog.accept());
-    await page.getByLabel('Google Sheets 계약목록 사용', { exact: true }).click();
+    await page.getByLabel('자동 동기화 사용 (기본 OFF)', { exact: true }).click();
     await page.getByText('사용함 / 연결 안 됨', { exact: true }).waitFor();
     await page.getByRole('button', { name: '새 계약관리 Sheet 만들기', exact: true }).click();
     await page.getByText('사용함 / 정상 연결', { exact: true }).waitFor();
@@ -265,7 +265,7 @@ async function main() {
     assert.ok(!('requestNotes' in rows[0]));assert.ok(!('snapshot' in rows[0]));
     await page.getByRole('button',{name:'동기화 상태 확인',exact:true}).click();
     await page.getByText(/완료 1건/).waitFor();
-    await page.getByLabel('Google Sheets 계약목록 사용',{exact:true}).click();
+    await page.getByLabel('자동 동기화 사용 (기본 OFF)',{exact:true}).click();
     await page.getByRole('region', { name: 'Google Sheets 계약목록', exact: true }).getByText('사용 안 함', { exact: true }).waitFor();
     const after=JSON.parse(fs.readFileSync(mirrorFile,'utf8'));assert.equal(after.enabled,false);assert.deepEqual(after.rows,mirror.rows);
     assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).current.revision,6);

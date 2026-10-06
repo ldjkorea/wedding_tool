@@ -154,7 +154,7 @@ export function generateRepresentativeNotificationEmail(
 
         ${pricing.futureCashbackTotal > 0 ? `
         <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed ${studio.colors.warm[300]}; font-size: 12px; color: ${studio.colors.warm[600]}; display: flex; justify-content: space-between;">
-          <span>추후 후기 작성 시 페이백 가능</span>
+          <span>혜택 조건 확인 후 추후 캐시백 가능</span>
           <span style="font-weight: 600; color: ${studio.colors.warm[700]};">최대 ${formatKRW(pricing.futureCashbackTotal)}</span>
         </div>` : ''}
       </div>

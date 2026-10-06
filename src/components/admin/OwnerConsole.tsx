@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OwnerEditors, ownerMenus } from './OwnerEditors';
 import { CalendarIntegrationSettings } from './CalendarIntegrationSettings';
@@ -8,8 +9,8 @@ import { formatKRW } from '@/lib/pricing';
 
 type Tab = typeof ownerMenus[number][0] | 'home';
 function summaries(before: OwnerSettings, after: OwnerSettings) {
-  const labels: Record<string, string> = { name: '이름', price: '가격', amount: '혜택 금액', description: '설명', subtitle: '한 줄 안내', includedItems: '주요 제공내용', retouchedCount: '보정본 수', additionalRetouchedCount: '추가 보정본 수', originalCount: '원본 안내', albumSpec: '앨범 구성', coupleAlbumSummary: '부부 앨범', parentAlbumSummary: '부모님 앨범', active: '사용 여부', displayOrder: '표시 순서', code: '코드' };
-  const display = (key: string, value: unknown): string => key === 'price' || key === 'amount' ? formatKRW(Number(value)) : key === 'active' ? value ? '사용' : '사용 안 함' : Array.isArray(value) ? value.join(' / ') : String(value ?? '없음');
+  const labels: Record<string, string> = { name: '이름', price: '가격', amount: '혜택 금액', description: '설명', subtitle: '한 줄 안내', includedItems: '주요 제공내용', retouchedCount: '보정본 수', additionalRetouchedCount: '추가 보정본 수', originalCount: '원본 안내', albumSpec: '앨범 구성', coupleAlbumSummary: '부부 앨범', parentAlbumSummary: '부모님 앨범', active: '사용 여부', displayOrder: '표시 순서', code: '코드', type: '적용 방식', eligibility: '적용 조건' };
+  const display = (key: string, value: unknown): string => key === 'price' || key === 'amount' ? formatKRW(Number(value)) : key === 'active' ? value ? '사용' : '사용 안 함' : Array.isArray(value) ? value.join(' / ') : key === 'type' ? value === 'cashback' ? '추후 캐시백' : '결제 전 할인' : key === 'eligibility' ? ((value as {kind?:string})?.kind === 'weekday' ? ['일','월','화','수','목','금','토'][(value as {weekday:number}).weekday] + '요일 예식' : ({partner:'할인코드 입력',portfolio:'포트폴리오 사용 동의',review_contract:'계약 후기 참여',review_main:'본식 후기 참여'} as Record<string,string>)[(value as {kind:string}).kind] || '미설정') : String(value ?? '없음');
   return (Object.keys(after) as (keyof OwnerSettings)[]).flatMap(key => after[key].flatMap((value, index) => {
     const item = value as unknown as Record<string, unknown>, old = before[key][index] as unknown as Record<string, unknown> | undefined;
     const name = String(item.name || item.code || '새 할인코드');
@@ -21,6 +22,8 @@ function ownerMessage(status: number, error: unknown, saving = false) {
   if (status === 401) return '로그인이 필요하거나 이용 시간이 만료되었습니다. 다시 로그인해 주세요.';
   if (status === 409) return String(error).includes('다른') || String(error).includes('다시 불러') ? '다른 곳에서 설정이 변경되었습니다. 최신 내용을 불러온 뒤 다시 저장해 주세요.' : '진행 중인 계약 또는 설정 확인이 필요합니다. 해당 계약을 먼저 확인하거나 관리자에게 문의해 주세요.';
   if (status === 429) return '로그인 시도가 많습니다. 15분 후 다시 시도해 주세요.';
+  if (status === 400 && String(error).includes('활성 상품')) return '고객이 선택할 수 있는 상품을 최소 1개 남겨 주세요.';
+  if (status === 400 && String(error).includes('같은 할인 조건')) return '같은 적용 조건의 혜택이 이미 사용 중입니다. 기존 혜택을 제거하거나 사용 중지한 뒤 저장해 주세요.';
   if (status === 400) return String(error).includes('계약금보다') ? '할인 적용 후 상품 금액이 계약금보다 작습니다. 가격과 혜택 금액을 확인해 주세요.' : '입력 내용을 확인해 주세요. 금액은 0 이상 정수, 코드는 중복 없이 입력하고 사용 중단은 사용 안 함으로 선택해 주세요.';
   if (status === 503) return '관리자에게 로그인 또는 저장 설정 확인을 요청해 주세요.';
   return saving ? '저장 결과를 확인하지 못했습니다. 최신 내용을 불러와 적용 여부를 확인한 뒤 다시 시도해 주세요.' : '요청을 완료하지 못했습니다. 잠시 후 다시 확인하거나 관리자에게 문의해 주세요.';
@@ -30,6 +33,7 @@ export function OwnerConsole() {
   const [settings, setSettings] = useState<OwnerSettings | null>(null), [original, setOriginal] = useState<OwnerSettings | null>(null), [version, setVersion] = useState(0);
   const [benefits, setBenefits] = useState<{ id: string; timing: string; condition: string }[]>([]);
   const [tab, setTab] = useState<Tab>('home'), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [confirmSave, setConfirmSave] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const activity = useRef(0), heartbeat = useRef(0), dialog = useRef<HTMLElement | null>(null);
   const editEpoch = useRef(0), loadSequence = useRef(0), sessionEpoch = useRef(0);
   const attemptedInitialLoad = useRef(false);
@@ -55,7 +59,10 @@ export function OwnerConsole() {
   useEffect(() => { const query = window.matchMedia('(min-width: 1024px)'); const change = () => setDesktop(query.matches); change(); query.addEventListener('change', change); return () => query.removeEventListener('change', change); }, []);
   useEffect(() => {
     if (!desktop || attemptedInitialLoad.current) return;
-    attemptedInitialLoad.current = true; load().catch(() => {});
+    attemptedInitialLoad.current = true;
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (requested === 'calendar' || requested === 'sheets') setTab(requested);
+    load().catch(() => {}).finally(() => setInitialLoading(false));
   }, [desktop, load]);
   useEffect(() => {
     if (!authenticated || !desktop) return;
@@ -78,9 +85,9 @@ export function OwnerConsole() {
   }
   if (!desktop) return <main className="admin-workspace p-6"><section className="admin-mobile-card"><p className="text-sm font-semibold mb-4">안전한 운영 설정</p><h1 className="text-xl font-semibold">운영 설정은 PC에서 이용해 주세요.</h1><p className="mt-3">화면 너비 1,024px 이상에서 이용할 수 있습니다.</p><p className="mt-4 text-sm">작은 화면에서 설정을 잘못 변경하지 않도록 PC에서 편집할 수 있습니다. 고객 계약 작성은 모바일에서도 이용할 수 있습니다.</p></section></main>;
   return <main className="admin-workspace max-w-6xl mx-auto w-full p-8">
-    <header className="admin-page-header mb-8"><h1 className="text-3xl font-bold">운영 설정</h1><p className="mt-3 text-slate-600">상품과 혜택을 쉽게 관리하세요. 저장한 내용은 이후 새로 계약하는 고객에게 적용되며, 이미 확정된 계약의 내용과 금액은 유지됩니다.</p></header>
+    <header className="admin-page-header mb-8"><div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-bold">운영 설정</h1><nav className="flex gap-3"><Link className="owner-button" onClick={event => { if (dirty && !window.confirm('저장하지 않은 변경을 남기고 이동할까요? 입력한 내용은 사라집니다.')) event.preventDefault(); }} href="/owner">예약 달력</Link><Link className="owner-button" onClick={event => { if (dirty && !window.confirm('저장하지 않은 변경을 남기고 이동할까요? 입력한 내용은 사라집니다.')) event.preventDefault(); }} href="/">고객 계약 화면</Link></nav></div><p className="mt-3 text-slate-600">상품과 혜택을 쉽게 관리하세요. 저장한 내용은 이후 새로 계약하는 고객에게 적용되며, 이미 확정된 계약의 내용과 금액은 유지됩니다.</p></header>
     {message && !confirmSave && <p role="status" className="border rounded-lg p-4 my-5 bg-slate-50 whitespace-pre-wrap">{message}</p>}
-    {!authenticated ? <form className="admin-login max-w-md space-y-5" onSubmit={event => { event.preventDefault(); perform(async () => { try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); } }); }}>
+    {initialLoading ? <p role="status" className="p-6 border rounded-xl">로그인 상태와 운영 설정을 불러오고 있습니다…</p> : !authenticated ? <form className="admin-login max-w-md space-y-5" onSubmit={event => { event.preventDefault(); perform(async () => { try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); } }); }}>
       <label className="block font-medium">대표 비밀번호<input aria-label="대표 비밀번호" className="owner-input" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></label><button className="owner-button admin-primary w-full" disabled={busy}>로그인</button>
     </form> : <>
       <div className="admin-toolbar flex justify-between mb-6"><button className="owner-button" disabled={busy} onClick={() => setTab('home')}>운영 메뉴</button><div className="flex gap-3"><button className="owner-button" disabled={busy} onClick={() => { if (!dirty || window.confirm('저장하지 않은 변경을 버리고 최신 내용을 불러올까요?')) perform(load); }}>최신 내용 불러오기</button><button className="owner-button" disabled={busy} onClick={() => perform(async () => { await api('auth', 'DELETE', {}); clear(); setMessage('로그아웃되었습니다.'); })}>로그아웃</button></div></div>

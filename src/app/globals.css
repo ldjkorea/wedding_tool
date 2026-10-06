@@ -102,6 +102,8 @@ body {
 .admin-workspace .admin-menu-card p { color: var(--admin-muted); margin: 12px 0 24px; }
 .admin-workspace .admin-menu-card button { margin-top: auto; align-self: flex-start; }
 .admin-workspace .admin-page-header { max-width: 78ch; }
+.admin-workspace > .admin-page-header { max-width: none; }
+.admin-workspace > .admin-page-header p { max-width: 78ch; }
 .admin-workspace .admin-page-header p { color: var(--admin-muted); }
 .admin-workspace .admin-login { padding: 28px; border: 1px solid var(--admin-line); border-radius: 14px; background: #fff; }
 .admin-workspace .integration-screen { container-type: inline-size; }

@@ -3,7 +3,7 @@ import { getBaseClientConfiguration } from './configuration';
 import type { SheetIntegrationStatus } from '@/types/sheetIntegration';
 
 /** This private integration document never enters business settings or configurationBinding. */
-export async function sheetIntegrationCall(action: 'status' | 'toggle' | 'create' | 'retry', sessionId: string, payload: Record<string, unknown> = {}) {
+export async function sheetIntegrationCall(action: 'status' | 'toggle' | 'create' | 'retry' | 'read' | 'sync', sessionId: string, payload: Record<string, unknown> = {}) {
   const result = await signedGasCall('sheet_' + action, { ...payload, sessionId, ...(action === 'create' ? { displayName: getBaseClientConfiguration().studioConfig.displayName } : {}) });
   const value = result.integration as SheetIntegrationStatus;
   if (!value || !Number.isSafeInteger(value.revision) || value.revision < 0 || typeof value.enabled !== 'boolean' ||
@@ -13,5 +13,7 @@ export async function sheetIntegrationCall(action: 'status' | 'toggle' | 'create
       Object.values(value.counts).some(count => !Number.isSafeInteger(count) || count < 0) ||
       value.jobs.some(job => !/^cnt_[a-zA-Z0-9_-]+$/.test(job.contractId) || typeof job.contractNumber !== 'string' || !['pending','failed','unknown'].includes(job.status)) ||
       (value.nextCursor !== null && (typeof value.nextCursor !== 'string' || value.nextCursor.length > 2000))) throw new Error('서버 설정 오류: 계약목록 연동 응답을 확인할 수 없습니다.');
+  if (value.previewRows !== undefined && (!Array.isArray(value.previewRows) || value.previewRows.length > 50 || value.previewRows.some(row => !Array.isArray(row) || row.length !== 7 || row.some(cell => typeof cell !== 'string' || cell.length > 2000)))) throw new Error('계약목록 응답 오류');
+  if (value.syncCursor !== undefined && value.syncCursor !== null && (typeof value.syncCursor !== 'string' || value.syncCursor.length > 2000)) throw new Error('계약목록 응답 오류');
   return value;
 }

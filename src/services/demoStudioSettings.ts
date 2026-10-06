@@ -66,7 +66,7 @@ export async function demoSettingsCall(action: string, payload: Record<string, u
     else if (action === 'validate_partner_code') {
       if ((payload.settingsRevision || 0) !== (state.current?.revision || 0) || (payload.settingsHash || '') !== (state.current?.hash || '')) throw new Error('Settings changed; reload required');
       const code = normalizePartnerCode(typeof payload.code === 'string' ? payload.code : '');
-      const rule = state.current?.settings.discountsConfig.find(item => item.eligibility.kind === 'partner');
+      const rule = state.current?.settings.discountsConfig.find(item => item.active && item.eligibility.kind === 'partner');
       const match = isPartnerCodeFormat(code) && rule?.active && rule.type === 'immediate' ? state.current?.settings.partnerCodes?.find(item => item.active && item.code === code) : undefined;
       const valid = !!match && Number.isSafeInteger(match.amount) && match.amount > 0;
       return { success: true, valid, code, discountAmount: valid ? match!.amount : 0 };

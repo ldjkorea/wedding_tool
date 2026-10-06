@@ -196,11 +196,11 @@ export const DiscountBenefitSection: React.FC<DiscountBenefitSectionProps> = ({
               </span>
             </div>
             <span className="text-sm sm:text-base font-bold text-[rgb(var(--studio-body))] tabular-nums shrink-0 text-right bg-[rgb(var(--studio-surface))] px-2.5 py-0.5 rounded-lg border border-[rgb(var(--studio-line))]">
-              {discountLabel('review_contract')} 할인
+              {discountLabel('review_contract')} {getDiscountById('review_contract')?.type === 'cashback' ? '추후 캐시백' : '결제 전 할인'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-[rgb(var(--studio-muted))] mt-2 pl-7.5 leading-relaxed break-keep">
-            웨딩 커뮤니티 또는 개인 블로그에 계약 후기 작성 시 {discountLabel('review_contract', true)} 페이백 <span className="whitespace-nowrap">{getClientContent().reviewContractChannelNotice}</span>
+            웨딩 커뮤니티 또는 개인 블로그에 계약 후기 작성 시 {discountLabel('review_contract', true)} {getDiscountById('review_contract')?.type === 'cashback' ? '추후 캐시백' : '결제 전 할인'} <span className="whitespace-nowrap">{getClientContent().reviewContractChannelNotice}</span>
           </p>
         </div>),
     review_main: (<div
@@ -227,11 +227,11 @@ export const DiscountBenefitSection: React.FC<DiscountBenefitSectionProps> = ({
               </span>
             </div>
             <span className="text-sm sm:text-base font-bold text-[rgb(var(--studio-body))] tabular-nums shrink-0 text-right bg-[rgb(var(--studio-surface))] px-2.5 py-0.5 rounded-lg border border-[rgb(var(--studio-line))]">
-              {discountLabel('review_main')} 할인
+              {discountLabel('review_main')} {getDiscountById('review_main')?.type === 'cashback' ? '추후 캐시백' : '결제 전 할인'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-[rgb(var(--studio-muted))] mt-2 pl-7.5 leading-relaxed break-keep">
-            본식 촬영 종료 및 최종본 수령 후 커뮤니티/블로그에 후기 작성 시 <span className="whitespace-nowrap">{discountLabel('review_main', true)} 페이백</span>
+            본식 촬영 종료 및 최종본 수령 후 커뮤니티/블로그에 후기 작성 시 <span className="whitespace-nowrap">{discountLabel('review_main', true)} {getDiscountById('review_main')?.type === 'cashback' ? '추후 캐시백' : '결제 전 할인'}</span>
           </p>
         </div>),
   };
@@ -275,7 +275,7 @@ export const DiscountBenefitSection: React.FC<DiscountBenefitSectionProps> = ({
         {/* 핵심 공지 문구 */}
         <div className="p-3.5 sm:p-4 bg-[rgb(var(--studio-background))] border border-[rgb(var(--studio-line))] rounded-xl text-xs sm:text-sm text-[rgb(var(--studio-body))] leading-relaxed break-keep space-y-1">
           <p className="font-semibold text-[rgb(var(--studio-primary))]">
-            * 후기 혜택은 작성 확인 후 추후 캐시백으로 지급됩니다. 계약금액과 잔금에서 미리 차감하지 않습니다.
+            * 아래 캐시백 혜택은 조건 확인 후 지급됩니다. 계약금액과 잔금에서 미리 차감하지 않습니다.
           </p>
           <div className="text-xs text-[rgb(var(--studio-muted))] space-y-0.5 pt-0.5 font-medium">
             <p>(후기 작성 후 URL 주소 {getClientContent().reviewProofChannel}으로 전달)</p>

@@ -22,7 +22,7 @@ export function CalendarIntegrationSettings({ api, owner = false }: { api: Api; 
   return <section aria-label="Google Calendar 촬영일정" className="integration-screen space-y-5">
     <header className="integration-heading">
       <h2 className="text-2xl font-semibold">Google Calendar 촬영일정</h2>
-      <p className="mt-3">승인한 계약의 예식일과 장소를 전용 캘린더에 자동으로 등록합니다.</p>
+      <ol className="grid gap-3 mt-5 text-sm list-decimal pl-5"><li>기본값은 OFF입니다. 아래에서 Google Calendar 사용을 켜세요.</li><li>촬영 일정 캘린더 만들기를 누르면 업체 전용 캘린더가 연결됩니다.</li><li>고객 접수는 예약현황판에만 표시됩니다. 대표 승인 후 Google 일정이 등록됩니다.</li><li>계약서 발송 완료 후 같은 일정의 상태가 갱신됩니다. 중복 일정을 만들지 않습니다.</li></ol><p className="mt-3">승인한 계약의 예식일과 장소를 전용 캘린더에 자동으로 등록합니다.</p>
       <p className="mt-2 text-sm">사용하지 않아도 계약서 발송은 정상 작동합니다. Google Sheets와 별도로 선택할 수 있습니다.</p>
     </header>
     {message && <p role="status" className="integration-notice">{message}</p>}

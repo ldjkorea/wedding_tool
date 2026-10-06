@@ -7,6 +7,9 @@ export interface SheetSyncJob {
   lastAttemptAt: string;
 }
 export interface SheetIntegrationStatus {
+  previewRows?: string[][];
+  syncCursor?: string | null;
+  queuedCount?: number;
   revision: number;
   enabled: boolean;
   connection: 'disabled' | 'disconnected' | 'connected' | 'error';

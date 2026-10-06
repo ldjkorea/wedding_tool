@@ -102,8 +102,7 @@ export function OwnerBookings() {
   useEffect(() => {
     const today = seoulDate();
     setMonth(today.slice(0, 7));
-    api('auth')
-      .then(() => load())
+    load()
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [api, load]);
@@ -213,6 +212,8 @@ export function OwnerBookings() {
               >
                 새로고침
               </button>
+              <Link className="owner-button" href="/">고객 계약 화면</Link>
+              <Link className="owner-button" href="/studio-control?tab=calendar">Google Calendar 설정</Link>
               <Link className="owner-button" href="/studio-control">
                 운영 설정
               </Link>
@@ -258,9 +259,9 @@ export function OwnerBookings() {
               </strong>
             </div>
             <p className="booking-muted">
-              접수는 확인 대기로 표시됩니다.
+              이 달력에는 접수·승인·완료된 예약이 모두 표시됩니다.
               <br />
-              대표 승인 후 확정 일정이 등록됩니다.
+              Google Calendar에는 연동을 켠 뒤 대표 승인한 계약만 등록됩니다.
             </p>
           </div>
           {cursor && (

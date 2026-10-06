@@ -23,8 +23,12 @@ export function enforceOwnerTransition(previous: StudioSettings, next: StudioSet
       seen.add(entry.id);
       const before = old.find(item => item.id === entry.id);
       const item = entry as unknown as Record<string, unknown>;
+      if (key === 'discountsConfig') {
+        const rule = entry as StudioSettings['discountsConfig'][number];
+        if (!rule.eligibility || !['weekday','partner','portfolio','review_contract','review_main'].includes(rule.eligibility.kind) || !['immediate','cashback'].includes(rule.type) || (rule.eligibility.kind === 'partner' && rule.type !== 'immediate') || (before && rule.eligibility.kind !== (before as typeof rule).eligibility.kind)) deny();
+      }
       if (!before) {
-        if (key === 'discountsConfig' || Object.keys(item).some(field => field !== 'id' && !(fields[key] as readonly string[]).includes(field))) deny();
+        if (Object.keys(item).some(field => field !== 'id' && !(fields[key] as readonly string[]).includes(field))) deny();
         continue;
       }
       const expected = structuredClone(before) as unknown as Record<string, unknown>;

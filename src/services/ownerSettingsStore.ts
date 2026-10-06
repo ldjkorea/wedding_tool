@@ -25,13 +25,13 @@ export function mergeOwnerSettings(previous: StudioSettings, input: unknown): St
       if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(name => name !== 'id' && !(fields as readonly string[]).includes(name))) fail();
       const item = value as Record<string, unknown>;
       const existing = old.find(entry => entry.id === item.id);
-      if ((item.id !== undefined && !existing) || (!existing && section === 'discounts')) fail();
+      if ((item.id !== undefined && !existing)) fail();
       const id = existing?.id || section.slice(0, -1) + '_' + crypto.randomUUID();
       if (seen.has(id)) fail(); seen.add(id);
       const patch = structuredClone(item); delete patch.id;
       const result = { ...existing, ...patch, id } as Record<string, unknown>;
       if (!existing) {
-        for (const required of section === 'products' ? ['name','price','description','includedItems','active','displayOrder'] : section === 'options' ? ['name','price','description','active'] : ['code','amount','active']) if (!Object.hasOwn(result, required)) fail();
+        for (const required of section === 'products' ? ['name','price','description','includedItems','active','displayOrder'] : section === 'options' ? ['name','price','description','active'] : section === 'discounts' ? ['name','amount','active','type','eligibility'] : ['code','amount','active']) if (!Object.hasOwn(result, required)) fail();
       }
       if (existing && item.name !== undefined && item.name !== (existing as { name?: string }).name) {
         if (section === 'products' || section === 'options') result.shortName = item.name;
@@ -40,7 +40,7 @@ export function mergeOwnerSettings(previous: StudioSettings, input: unknown): St
           result.labels = Object.fromEntries(['form','review','pdf','summary','catalog','email'].map(channel => [channel, item.name]));
         }
       }
-      if (section === 'discounts' && item.description !== undefined && item.description !== (existing as { description?: string }).description) result.pricingDescription = item.description;
+      if (existing && section === 'discounts' && item.description !== undefined && item.description !== (existing as { description?: string }).description) result.pricingDescription = item.description;
       return result;
     });
     if (old.some(item => !seen.has(item.id))) throw new Error('설정 검증: 사용을 중단할 항목은 삭제하지 않고 사용 안 함으로 변경해 주세요.');

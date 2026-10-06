@@ -81,3 +81,13 @@ Gmail과 Drive는 하나의 트랜잭션이 아닙니다. 메일 수신함 도�
 ## Owner / Master 역할
 
 업그레이드한 앱과 함께 이 GAS 버전을 staging에서 확인하세요. 영속 관리자 세션에 역할을 저장하고 owner_read/owner_save는 Owner, settings_read/settings_save/settings_restore는 Master로 제한합니다. Sheets 운영은 두 역할이 사용할 수 있으며 ID 직접 변경은 허용하지 않습니다. 기존 revision은 그대로 유지하고 새 revision에는 변경 역할을 기록합니다. [안전한 인증 이전 절차](../docs/OWNER_MASTER_ADMINISTRATION.md)를 따르세요.
+
+## Calendar 최초 권한 및 운영 설정
+
+`appsscript.json`의 OAuth 범위를 함께 배포합니다. 편집기에서 `Setup.gs`의 `authorizeWeddingIntegrations`를 실행하고 실행 계정이 직접 Google 권한에 동의합니다. 이 함수는 메일이나 일정을 만들지 않습니다. 권한 승인이 끝난 다음 새 버전으로 웹 앱을 업데이트합니다. 기존 웹 앱 URL을 유지합니다.
+
+Calendar와 Sheets는 기본 OFF입니다. 운영 설정에서 각각 사용 ON → 전용 자원 만들기 순서로 연결합니다. 접수 계약은 내부 예약 달력에서 확인 대기로 보이며, Google Calendar에는 대표 승인 후 확정 Snapshot 기준으로 등록됩니다. 계약서 발송 후 같은 일정이 갱신됩니다.
+
+Sheets의 목록 불러오기는 최대 50행을 읽는 조회 작업입니다. 원본에서 저장·재동기화는 Drive 계약 원본을 기준으로 최대 30개 파일씩 작업을 요청합니다. 다음 계약 버튼이 있으면 이어서 요청합니다. 실제 반영은 별도 자동 작업에서 처리하며 통상 약 1분 이상의 지연이 있을 수 있습니다. OFF에서는 복구·자동 쓰기가 실행되지 않습니다. Sheet 편집값은 계약 Snapshot을 덮어쓰지 않습니다.
+
+상품·옵션·혜택 제거는 비활성화입니다. 이미 저장된 식별자와 과거 계약 자료는 보존하며 비활성 항목 보기에서 복구할 수 있습니다. 혜택은 동일 적용 조건을 하나만 활성화할 수 있습니다. 캐시백은 계약금액을 차감하지 않으며 할인코드는 즉시 할인으로 고정합니다.
