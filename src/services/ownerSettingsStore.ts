@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { invalidatePublicPageSettings } from './publicPageSettingsCache';
 import { signedGasCall } from './gasTransport';
 import { baseSettings, validateStudioSettings } from './settingsValidation';
 import { settingsHash, verifySettingsRevision } from './studioSettingsStore';
@@ -64,5 +65,6 @@ export async function saveOwnerSettings(sessionId: string, input: unknown, expec
   const result = await signedGasCall('owner_save', { sessionId, expectedRevision, settings, hash: settingsHash(settings), ...(head.revision === 0 ? { bootstrap: head.settings } : {}) });
   const saved = verifySettingsRevision(result.current);
   if (saved.revision !== Number(expectedRevision) + 1 || saved.hash !== settingsHash(settings)) throw new Error('서버 설정 오류: 저장 결과를 확인하지 못했습니다. 다시 조회해 주세요.');
+  invalidatePublicPageSettings();
   return saved;
 }

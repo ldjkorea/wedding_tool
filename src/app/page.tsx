@@ -7,10 +7,10 @@ import { settingsEnabled } from '@/services/studioSettingsStore';
 import { configurationBinding } from '@/lib/contractWorkflow';
 import type { StudioSettings } from '@/types/studioSettings';
 export const dynamic = 'force-dynamic';
-import { loadRuntimeConfiguration } from '@/services/serverRuntimeConfiguration';
+import { loadPublicPageConfiguration } from '@/services/serverRuntimeConfiguration';
 import { cache } from 'react';
 // React cache is request scoped: metadata and the page share a read, never tenants or requests.
-const loadPageConfiguration = cache(loadRuntimeConfiguration);
+const loadPageConfiguration = cache(loadPublicPageConfiguration);
 export async function generateMetadata() {
   const { config } = await loadPageConfiguration();
   return { ...config.content.metadata, icons: { icon: config.studioConfig.logo } };

@@ -3,6 +3,7 @@ import { signedGasCall } from './gasTransport';
 import { getBaseClientConfiguration } from './configuration';
 import { baseSettings, validateStudioSettings } from './settingsValidation';
 import type { SettingsRevision, SettingsHead, StudioSettings } from '@/types/studioSettings';
+import { invalidatePublicPageSettings } from './publicPageSettingsCache';
 
 export function settingsEnabled() {
   const flag = process.env.STUDIO_SETTINGS_ENABLED?.trim();
@@ -50,6 +51,7 @@ export async function saveAdminSettings(sessionId: string, input: unknown, expec
   const result = await signedGasCall('settings_save', { sessionId, expectedRevision, settings, hash: settingsHash(settings) });
   const stored = verifySettingsRevision(result.current);
   if (stored.revision !== expectedRevision + 1 || stored.hash !== settingsHash(settings)) throw new Error('서버 설정 오류: 저장 결과를 확인하지 못했습니다. 다시 조회해 주세요.');
+  invalidatePublicPageSettings();
   return stored;
 }
 export async function restoreAdminSettings(sessionId: string, revision: number, expectedRevision: number): Promise<SettingsRevision> {
@@ -59,5 +61,7 @@ export async function restoreAdminSettings(sessionId: string, revision: number, 
   // Restoring creates a new revision; the append-only audit history never rolls backwards.
   const settings = validateStudioSettings(old.settings, old.settings);
   const saved = await signedGasCall('settings_restore', { sessionId, revision, expectedRevision, settings, sourceHash: old.hash, hash: settingsHash(settings) });
-  return verifySettingsRevision(saved.current);
+  const restored = verifySettingsRevision(saved.current);
+  invalidatePublicPageSettings();
+  return restored;
 }
