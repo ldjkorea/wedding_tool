@@ -50,6 +50,9 @@ export function adminOrigin(req: NextRequest) {
   if (!req.headers.get('content-type')?.startsWith('application/json')) throw new Error('JSON 요청만 허용합니다.');
 }
 export async function loginAdmin(password: unknown, role: AdminRole = 'master'): Promise<string> {
+  return (await loginAdminWithInitialData(password, role)).cookie;
+}
+export async function loginAdminWithInitialData(password: unknown, role: AdminRole, initialView?: 'bookings' | 'settings') {
   requireSettingsEnabled();
   const attempt = await signedGasCall('admin_attempt', { role });
   const credential = role === 'owner' ? await ownerCredentialFromResult(attempt) : null;
@@ -65,8 +68,8 @@ export async function loginAdmin(password: unknown, role: AdminRole = 'master'):
   if (credential) ensureOwnerCredentialReady(credential);
   const raw = crypto.randomBytes(32).toString('hex');
   const id = sessionId(raw, role, hash);
-  await signedGasCall('admin_login', { sessionId: id, role, ...(credential ? { credentialRevision: credential.revision } : {}) });
-  return role === 'owner' ? signedOwnerCookie(id) : raw;
+  const result = await signedGasCall('admin_login', { sessionId: id, role, ...(initialView ? { initialView } : {}), ...(credential ? { credentialRevision: credential.revision } : {}) });
+  return { cookie: role === 'owner' ? signedOwnerCookie(id) : raw, initial: result.initial };
 }
 export async function requireAdmin(req: NextRequest, role: AdminRole = 'master', checkedByAction = false): Promise<string> {
   requireSettingsEnabled();

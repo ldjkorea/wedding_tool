@@ -35,6 +35,9 @@ export async function readRuntimeSettings(): Promise<SettingsRevision | null> {
 export async function readAdminSettings(sessionId: string): Promise<SettingsHead> {
   requireSettingsEnabled();
   const result = await signedGasCall('settings_read', { sessionId });
+  return decodeAdminSettings(result);
+}
+export function decodeAdminSettings(result: Record<string, unknown>): SettingsHead {
   const history = result.history as SettingsHead['history'];
   if (!Array.isArray(history) || history.length > 20 || history.some(item => !Number.isSafeInteger(item.revision) || item.revision < 1 || !Number.isFinite(Date.parse(item.updatedAt)) || !/^[a-f0-9]{64}$/.test(item.hash))) throw new Error('서버 설정 오류: 설정 이력 응답 오류');
   if (!Number.isSafeInteger(result.revision) || Number(result.revision) < 0) throw new Error('서버 설정 오류: 설정 revision 응답 오류');

@@ -18,6 +18,8 @@
     "test:browser": "tsx scripts/run-contract-browser-regression-tests.ts",
     "test:regression": "npm run test:acceptance && npm run test:hardening && npm run test:flow && npm run test:browser",
     "typecheck:tests": "tsc -p tsconfig.tests.json",
+    "test:page-cache": "tsx scripts/run-page-cache-tests.ts",
+    "test:login-bootstrap": "tsx scripts/run-login-bootstrap-tests.ts",
     "test:settings": "tsx scripts/run-studio-settings-tests.ts",
     "test:settings-browser": "tsx scripts/run-studio-settings-browser-tests.ts",
     "test:discount-codes": "tsx scripts/run-discount-code-tests.ts",

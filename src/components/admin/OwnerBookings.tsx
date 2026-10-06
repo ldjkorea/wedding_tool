@@ -85,9 +85,9 @@ export function OwnerBookings() {
     [clear],
   );
   const load = useCallback(
-    async (next?: string) => {
+    async (next?: string, initial?: { bookings: OwnerBooking[]; nextCursor: string | null; demo: boolean }) => {
       const current = epoch.current,
-        data = await api('bookings' + (next ? '?cursor=' + encodeURIComponent(next) : ''));
+        data = initial || await api('bookings' + (next ? '?cursor=' + encodeURIComponent(next) : ''));
       if (current !== epoch.current) return;
       setRows(
         (previous) =>
@@ -175,8 +175,8 @@ export function OwnerBookings() {
               void perform(async () => {
                 epoch.current++;
                 try {
-                  await api('pin', 'POST', { password: pin });
-                  await load();
+                  const result = await api('pin', 'POST', { password: pin, initialView: 'bookings' });
+                  await load(undefined, result.initial);
                 } finally {
                   setPin('');
                 }

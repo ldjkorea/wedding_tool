@@ -42,9 +42,9 @@ export function StudioControl() {
     };
     return method === 'GET' ? deduplicateRead(reads.current, epoch + ':' + url, request) : request();
   }, []);
-  const load = useCallback(async () => {
+  const load = useCallback(async (initial?: Awaited<ReturnType<typeof api>>) => {
     const epoch = sessionEpoch.current, sequence = ++loadSequence.current;
-    const data = await api('settings');
+    const data = initial || await api('settings');
     if (epoch !== sessionEpoch.current || sequence !== loadSequence.current) return;
     const document = data.settings as StudioSettings | null;
     if (document) {
@@ -93,7 +93,7 @@ export function StudioControl() {
     <p className="text-sm mb-6">설정 변경은 신규 계약에 적용됩니다. 미처리 계약은 정책 변경 보호에 의해 차단될 수 있습니다. 이미 확정된 계약은 유지됩니다.</p>
     {message && <p role="status" className="border p-3 my-4 bg-white whitespace-pre-wrap">{message}</p>}
     {initialLoading ? <ConsoleLoading>관리자 인증 상태를 확인하고 있습니다…</ConsoleLoading> : !authenticated ? <form className="admin-login max-w-md space-y-4" onSubmit={event => { event.preventDefault(); perform(async () => {
-      try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); }
+      try { const result = await api('auth', 'POST', { password, initialView: 'settings' }); await load(result.initial); } finally { setPassword(''); }
     }); }}>
       <PasswordField id="master-login-password" label="관리자 비밀번호" className="admin-input" value={password} onChange={event => setPassword(event.target.value)} disabled={busy} required />
       <button className="admin-button admin-primary w-full" disabled={busy}>{busy ? '확인 중…' : '로그인'}</button>

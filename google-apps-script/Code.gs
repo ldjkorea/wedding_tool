@@ -4,7 +4,19 @@
  * Partner discount codes are private data in studio settings revisions.
  * No runtime fallback, sample seeding, or anonymous side-effecting GET.
  */
-function setting(name) {
+// Numeric diagnostics only, enabled by an authenticated server request. No identity or payload.
+var providerPerformance = null;
+function providerStep(name, work) {
+  if (!providerPerformance) return work();
+  const started = Date.now();
+  try { return work(); }
+  finally {
+    providerPerformance[name + "_ms"] = (providerPerformance[name + "_ms"] || 0) + Date.now() - started;
+    providerPerformance[name + "_calls"] = (providerPerformance[name + "_calls"] || 0) + 1;
+  }
+}
+function setting(name) { return providerStep("properties", function() { return measured_setting(name); }); }
+function measured_setting(name) {
   const value = PropertiesService.getScriptProperties().getProperty(name);
   if (!value || !value.trim()) throw new Error("Configuration missing: " + name);
   return value.trim();
@@ -37,13 +49,15 @@ function authenticate(request) {
   props.setProperty(nonceKey, String(request.timestamp));
 }
 function doPost(e) {
+  const started = Date.now();
   const lock = LockService.getScriptLock();
   let acquired = false;
   try {
     const request = JSON.parse(e.postData.contents);
-    acquired = lock.tryLock(10000);
+    providerPerformance = request.trace === true ? {} : null;
+    acquired = providerStep("lock", function() { return lock.tryLock(10000); });
     if (!acquired) throw new Error("Busy");
-    authenticate(request);
+    providerStep("hmac", function() { authenticate(request); });
     const payload = JSON.parse(request.payloadJson);
     if (!payload || typeof payload.studioId !== "string" || !payload.studioId.trim()) throw new Error("Missing studio scope");
     let result;
@@ -69,6 +83,7 @@ function doPost(e) {
     } else if (request.action === "prepare_contract") result = prepareContract(payload);
     else if (request.action === "approve_and_send") result = approveAndSend(payload);
     else throw new Error("Unknown action");
+    if (providerPerformance) result.__timing = Object.assign({ total_ms: Date.now() - started }, providerPerformance);
     return jsonResponse(result);
   } catch (error) {
     // Never expose customer values, bearer tokens, or raw provider diagnostics.
@@ -78,6 +93,7 @@ function doPost(e) {
     return jsonResponse({ success: false, code: code, error: configurationError ? message : "Request rejected or incomplete. Inspect stored contract state before retrying." });
   } finally {
     if (acquired) lock.releaseLock();
+    providerPerformance = null;
   }
 }
 function doGet() {
@@ -277,19 +293,22 @@ function settingsKey(payload) {
   if (!/^[a-z0-9][a-z0-9_-]{0,79}$/.test(payload.studioId)) throw new Error("Invalid studio");
   return "studio_settings_" + payload.studioId;
 }
-function settingsPointer(payload) {
+function settingsPointer(payload) { return providerStep("settings_pointer", function() { return measured_settingsPointer(payload); }); }
+function measured_settingsPointer(payload) {
   const raw = PropertiesService.getScriptProperties().getProperty(settingsKey(payload));
   if (!raw) return { revision: 0, history: [] };
   const pointer = JSON.parse(raw);
   if (!Number.isSafeInteger(pointer.revision) || pointer.revision < 1 || !Array.isArray(pointer.history)) throw new Error("Settings pointer corrupt");
   return pointer;
 }
-function settingsFolder() {
+function settingsFolder() { return providerStep("drive_folder", function() { return measured_settingsFolder(); }); }
+function measured_settingsFolder() {
   const id = setting("STUDIO_SETTINGS_FOLDER_ID");
   if (id === setting("CONTRACTS_FOLDER_ID")) throw new Error("Configuration invalid: STUDIO_SETTINGS_FOLDER_ID");
   return DriveApp.getFolderById(id);
 }
-function readSettingsEntry(payload, entry) {
+function readSettingsEntry(payload, entry) { return providerStep("settings_read", function() { return measured_readSettingsEntry(payload, entry); }); }
+function measured_readSettingsEntry(payload, entry) {
   if (!entry || !entry.fileId) throw new Error("Unknown revision");
   const file = DriveApp.getFileById(entry.fileId);
   const value = JSON.parse(file.getBlob().getDataAsString("UTF-8"));
@@ -309,14 +328,16 @@ function assertSettingsCurrent(payload) {
 }
 function adminKey(payload) { return settingsKey(payload) + "_auth"; }
 function ownerCredentialKey(payload) { return settingsKey(payload) + "_owner_credential"; }
-function readOwnerCredentialState(payload) {
+function readOwnerCredentialState(payload) { return providerStep("credential_read", function() { return measured_readOwnerCredentialState(payload); }); }
+function measured_readOwnerCredentialState(payload) {
   const raw = PropertiesService.getScriptProperties().getProperty(ownerCredentialKey(payload));
   if (!raw) return { hash: null, revision: 0 };
   const value = JSON.parse(raw);
   if (!value || !/^scrypt\$16384\$8\$1\$[a-f0-9]{32}\$[a-f0-9]{128}$/.test(value.hash || "") || !Number.isSafeInteger(value.revision) || value.revision < 1) throw new Error("Invalid credential state");
   return value;
 }
-function readAdminState(payload) {
+function readAdminState(payload) { return providerStep("auth_state_read", function() { return measured_readAdminState(payload); }); }
+function measured_readAdminState(payload) {
   const raw = PropertiesService.getScriptProperties().getProperty(adminKey(payload));
   const state = raw ? JSON.parse(raw) : { attempts: [], sessions: {} };
   const now = Date.now();
@@ -326,7 +347,8 @@ function readAdminState(payload) {
   });
   return state;
 }
-function writeAdminState(payload, state) {
+function writeAdminState(payload, state) { return providerStep("auth_state_write", function() { return measured_writeAdminState(payload, state); }); }
+function measured_writeAdminState(payload, state) {
   const props = PropertiesService.getScriptProperties(), key = adminKey(payload), raw = JSON.stringify(state);
   props.setProperty(key, raw);
   if (props.getProperty(key) !== raw) throw new Error("Session persistence failure");
@@ -426,10 +448,19 @@ function settingsAction(action, payload) {
     while (ids.length >= 5) delete state.sessions[ids.shift()];
     const role = payload.role || "master";
     if (role !== "owner" && role !== "master") throw new Error("Unauthorized admin");
+    if (payload.initialView !== undefined && payload.initialView !== (role === "owner" ? "bookings" : "settings")) throw new Error("Unauthorized admin");
     if (role === "owner" && (payload.credentialRevision || 0) !== readOwnerCredentialState(payload).revision) throw new Error("Unauthorized admin");
     state.sessions[payload.sessionId] = { createdAt: Date.now(), lastSeen: Date.now(), role: role };
     // Attempts remain counted, including successes, to bound total password work.
-    writeAdminState(payload, state); return { success: true };
+    writeAdminState(payload, state);
+    // The durable authenticated session exists before the optional first-screen read.
+    // Old clients keep their existing response. A read failure never grants different permissions.
+    let initial;
+    if (payload.initialView) {
+      try { initial = role === "owner" ? ownerBookings({ studioId: payload.studioId, sessionId: payload.sessionId }) : settingsAction("settings_read", { studioId: payload.studioId, sessionId: payload.sessionId }); }
+      catch (error) { initial = undefined; }
+    }
+    return Object.assign({ success: true }, initial ? { initial: initial } : {});
   }
   let actor = null;
   if (action !== "settings_runtime") actor = requireAdminSession(payload, action.indexOf("owner_") === 0 ? "owner" : action.indexOf("settings_") === 0 ? "master" : undefined);
@@ -751,7 +782,8 @@ function readCalendarConfig(studioId) {
   if (value.schemaVersion !== 1 || value.studioId !== studioId || typeof value.enabled !== "boolean" || !Number.isSafeInteger(value.revision) || ![60,120,180,240,360,480].includes(value.durationMinutes) || value.timezone !== "Asia/Seoul" || !Number.isSafeInteger(value.cycle)) throw new Error("CONFIGURATION_UNAVAILABLE");
   return value;
 }
-function ownerBookings(payload) {
+function ownerBookings(payload) { return providerStep("bookings_read", function() { return measured_ownerBookings(payload); }); }
+function measured_ownerBookings(payload) {
   requireAdminSession(payload, "owner");
   if (Object.keys(payload).some(function(key) { return ["studioId","sessionId","cursor"].indexOf(key) < 0; }) ||
       (payload.cursor && (typeof payload.cursor !== "string" || payload.cursor.length > 2000))) throw new Error("Invalid booking request");

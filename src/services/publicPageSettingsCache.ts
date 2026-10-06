@@ -6,7 +6,9 @@ import type { SettingsRevision } from '@/types/studioSettings';
 // Only the public page uses this cache. Contract mutations and authentication always read fresh.
 export const PUBLIC_PAGE_SETTINGS_TTL_MS = 60_000;
 type Entry = { expiresAt: number; value?: SettingsRevision | null; pending?: Promise<SettingsRevision | null> };
-const entries = new Map<string, Entry>();
+// Next route bundles share this process-local store, so settings writes invalidate page reads too.
+const processCache = globalThis as typeof globalThis & { __weddingPublicPageSettingsCache?: Map<string, Entry> };
+const entries = processCache.__weddingPublicPageSettingsCache ??= new Map<string, Entry>();
 
 function scope() {
   // Validate the environment even on a cache hit; no cached configuration can hide missing secrets.

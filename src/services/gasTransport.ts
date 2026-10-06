@@ -10,6 +10,7 @@ export class GasRequestError extends Error { constructor(public code: string) { 
 export type GasResult = Record<string, unknown> & { success: boolean; error?: string; code?: string };
 export async function signedGasCall(action: string, payload: Record<string, unknown>, webAppUrl?: string): Promise<GasResult> {
     const start = performance.now();
+    let providerTiming: Record<string, unknown> | undefined;
     try {
     if (isDemoMode()) {
       try { return await (action.startsWith('calendar_') ? demoCalendarCall : action.startsWith('sheet_') ? demoSheetCall : demoSettingsCall)(action, { ...payload, studioId: getStudioConfig().studioId }); }
@@ -25,7 +26,7 @@ export async function signedGasCall(action: string, payload: Record<string, unkn
       response = await fetch(webAppUrl || config.gasUrl, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, cache: 'no-store',
         signal: AbortSignal.timeout(25000),
-        body: JSON.stringify({ action, payloadJson, timestamp, nonce, signature }),
+        body: JSON.stringify({ action, payloadJson, timestamp, nonce, signature, trace: true }),
       });
     } catch {
       throw new Error('백엔드 응답을 확인하지 못했습니다. 같은 계약으로 상태를 확인해 주세요.');
@@ -34,6 +35,8 @@ export async function signedGasCall(action: string, payload: Record<string, unkn
     let result: GasResult;
     try { result = await response.json(); } catch { throw new Error('백엔드 응답 형식 오류'); }
     if (!result || typeof result.success !== 'boolean') throw new Error('백엔드 응답 형식 오류');
+    if (result.__timing && typeof result.__timing === 'object' && !Array.isArray(result.__timing)) providerTiming = result.__timing as Record<string, unknown>;
+    delete result.__timing;
     if (!result.success) {
       if (['ADMIN_UNAUTHORIZED', 'ADMIN_RATE_LIMIT', 'SETTINGS_CONFLICT'].includes(result.code || '')) throw new GasRequestError(result.code!);
       if (typeof result.error === 'string' && /^Configuration (missing|invalid): (GAS_SHARED_SECRET|CONTRACTS_FOLDER_ID|STUDIO_SETTINGS_FOLDER_ID)$/.test(result.error)) {
@@ -42,5 +45,5 @@ export async function signedGasCall(action: string, payload: Record<string, unkn
       throw new Error('백엔드가 처리를 완료하지 못했습니다. 상태 확인이 필요합니다.');
     }
     return result;
-    } finally { recordGasTiming(start); }
+    } finally { recordGasTiming(start, action, providerTiming); }
 }
