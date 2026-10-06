@@ -159,12 +159,20 @@ async function main() {
   await test('Owner logout clears private draft and leaves separate Master login usable', async () => {
     await page.getByRole('button', { name: '로그아웃', exact: true }).click(); await page.getByLabel('대표 비밀번호').waitFor(); assert.equal(await page.getByLabel('상품 가격', { exact: true }).count(), 0); assert.equal((await context.request.get(origin + '/api/master-control/settings')).status(), 200);
   });
-  await test('Desktop-first policy preserved on mobile without broadening administrative editing', async () => {
-    for (const width of [320, 390, 768, 1023]) {
-      await page.setViewportSize({ width, height: 844 }); await page.goto(origin + '/studio-control'); await page.getByRole('heading', { name: '운영 설정은 PC에서 이용해 주세요.' }).waitFor(); assert.equal(await page.getByLabel('대표 비밀번호').count(), 0);
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await test('Mobile Owner settings are usable without horizontal overflow across menus', async () => {
+    await page.setViewportSize({width:390,height:844}); await page.goto(origin+'/studio-control');
+    await page.getByLabel('대표 비밀번호').fill(password); await page.getByRole('button',{name:'로그인',exact:true}).click();
+    await page.getByRole('button',{name:'상품 관리',exact:true}).waitFor();
+    for (const width of [320,390,768,1023]) {
+      await page.setViewportSize({width,height:844});
+      for (const name of ['상품 관리','옵션 관리','할인 관리','할인코드 관리','Google Calendar 설정','Google Sheets 설정']) {
+        await menu(name);
+        if (name.startsWith('Google')) await page.locator('.integration-grid').waitFor();
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,name+' at '+width);
+      }
     }
-    await page.setViewportSize({ width: 390, height: 844 }); await page.screenshot({ path: path.join(artifacts, 'owner-mobile-policy.png'), fullPage: true });
+    await page.setViewportSize({width:390,height:844}); await menu('상품 관리');
+    await page.screenshot({path:path.join(artifacts,'owner-mobile-settings.png'),fullPage:true});
   });
   assert.deepEqual(errors, []);
 }

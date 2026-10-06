@@ -4,6 +4,7 @@ import { getStudioConfig, getDefaultProductId, isDiscountActive, getBrowserConfi
 
 import React, { useState, useMemo } from 'react';
 import { Header } from '@/components/ui/Header';
+import { MasterEntry } from '@/components/ui/MasterEntry';
 import { OwnerEntry } from '@/components/ui/OwnerEntry';
 import { HomeLandingView } from '@/components/home/HomeLandingView';
 import { ProductCatalogView } from '@/components/catalog/ProductCatalogView';
@@ -462,9 +463,9 @@ export default function CustomerContractPage() {
           /></OwnerEntry>
           <div className="space-y-1">
             <p className="font-semibold text-[rgb(var(--studio-primary))] text-xs sm:text-sm">{studio.brandTagline}</p>
-            <p className="text-[11px] text-[rgb(var(--studio-subtle))]">
-              Copyright &copy; {new Date().getFullYear()} {studio.displayName}. All rights reserved.
-            </p>
+            <div className="text-[11px] text-[rgb(var(--studio-subtle))]">
+              <MasterEntry dirty={viewMode === 'form' || viewMode === 'confirm'}>Copyright &copy; {new Date().getFullYear()} {studio.displayName}. All rights reserved.</MasterEntry>
+            </div>
           </div>
         </div>
       </footer>

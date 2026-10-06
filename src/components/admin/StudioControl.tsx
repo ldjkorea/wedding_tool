@@ -7,6 +7,7 @@ const sections = [
   ['studioConfig', '업체정보'], ['productsConfig', '상품'], ['optionsConfig', '옵션'],
   ['discountsConfig', '할인 / 혜택'], ['contractPolicy', '계약정책'], ['formSchema', '고객 입력폼'], ['content', '계약서 / 안내 문구'],
 ] as const;
+import { ConsoleNavigation, ConsoleLoading } from './ConsolePrimitives';
 import { SettingFields } from './SettingFields';
 import { CalendarIntegrationSettings } from './CalendarIntegrationSettings';
 import { SheetIntegrationSettings } from './SheetIntegrationSettings';
@@ -20,6 +21,7 @@ export function StudioControl() {
   const [original, setOriginal] = useState<StudioSettings | null>(null), [revision, setRevision] = useState(0);
   const [history, setHistory] = useState<SettingsHead['history']>([]), [restoreRevision, setRestoreRevision] = useState('');
   const [tab, setTab] = useState<typeof sections[number][0] | 'integration' | 'ownerPassword'>('studioConfig'), [message, setMessage] = useState('');
+  const [initialLoading, setInitialLoading] = useState(true);
   const [busy, setBusy] = useState(false), [recovery, setRecovery] = useState(false);
   const [confirmSave, setConfirmSave] = useState(false);
   const confirmationRef = useRef<HTMLElement | null>(null);
@@ -56,7 +58,7 @@ export function StudioControl() {
   }, []);
   useEffect(() => {
     if (!desktop) return;
-    load().catch(() => {});
+    load().catch(() => {}).finally(() => setInitialLoading(false));
   }, [desktop, load]);
   useEffect(() => {
     if (!authenticated || !desktop) return;
@@ -86,23 +88,26 @@ export function StudioControl() {
   }
   if (!desktop) return <main className="admin-workspace p-6"><section className="admin-mobile-card"><p className="text-sm font-semibold mb-4">안전한 운영 설정</p><h1 className="text-xl font-semibold">관리자 설정은 PC에서 이용해 주세요.</h1><p className="mt-3">화면 너비 1,024px 이상에서 이용할 수 있습니다.</p><p className="mt-4 text-sm">작은 화면에서 설정을 잘못 변경하지 않도록 PC에서 편집할 수 있습니다. 고객 계약 작성은 모바일에서도 이용할 수 있습니다.</p></section></main>;
   return <main className="admin-workspace max-w-6xl mx-auto w-full p-8">
-    <h1 className="text-2xl font-bold mb-2">총관리자 설정</h1>
-    <p className="text-sm mb-6">설정 변경은 신규 계약에 적용됩니다. 미처리 계약은 정책 변경 보호에 의해 차단될 수 있습니다. 확정 계약의 Snapshot은 유지됩니다.</p>
+    <ConsoleNavigation current="master" dirty={dirty} /><p className="booking-eyebrow">SERVICE ADMINISTRATION</p><h1 className="text-2xl font-bold mb-2">총관리자 설정</h1>
+    <p className="text-sm mb-6">설정 변경은 신규 계약에 적용됩니다. 미처리 계약은 정책 변경 보호에 의해 차단될 수 있습니다. 이미 확정된 계약은 유지됩니다.</p>
     {message && <p role="status" className="border p-3 my-4 bg-white whitespace-pre-wrap">{message}</p>}
-    {!authenticated ? <form className="admin-login max-w-md space-y-4" onSubmit={event => { event.preventDefault(); perform(async () => {
+    {initialLoading ? <ConsoleLoading>관리자 인증 상태를 확인하고 있습니다…</ConsoleLoading> : !authenticated ? <form className="admin-login max-w-md space-y-4" onSubmit={event => { event.preventDefault(); perform(async () => {
       try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); }
     }); }}>
       <label>관리자 비밀번호<input aria-label="관리자 비밀번호" className="admin-input" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></label>
       <button className="admin-button admin-primary w-full" disabled={busy}>로그인</button>
     </form> : <>
-      <div className="admin-toolbar flex mb-6"><span>설정 revision {revision}{dirty ? ' · 저장하지 않은 변경 있음' : ''}</span>
+      <div className="admin-toolbar flex mb-6"><span>설정 버전 {revision}{dirty ? ' · 저장하지 않은 변경 있음' : ''}</span>
         <button className="admin-button" disabled={busy} onClick={() => perform(async () => { await api('auth', 'DELETE', {}); setAuthenticated(false); setSettings(null); setOriginal(null); setConfirmSave(false); setMessage('로그아웃되었습니다.'); })}>로그아웃</button>
         <button className="admin-button" disabled={busy} onClick={() => { if (!dirty || window.confirm('저장하지 않은 변경을 버리고 다시 불러올까요?')) perform(load); }}>다시 불러오기</button>
       </div>
       {recovery && <p role="alert" className="text-red-700 mb-4">저장본 무결성 오류로 고객 계약 처리가 차단되어 있습니다. 정상 revision으로 복구해 주세요.</p>}
-      <fieldset disabled={busy} className="contents"><div className="flex gap-8"><nav className="admin-side-nav w-44 shrink-0 space-y-2" aria-label="설정 메뉴">{sections.map(([key, label]) =>
+      <section className="console-service-summary" aria-label="서비스 상태"><div><span>설정 상태</span><strong>{recovery ? '복구 필요' : '조회 완료'}</strong></div><div><span>활성 설정 버전</span><strong>{revision}</strong></div><div><span>설정 이력</span><strong>{history.length}건</strong></div></section>
+      <p className="booking-muted mb-6">일상적인 상품·가격 변경은 운영 설정에서 관리하세요. 이곳에서는 업체 정보, 계약 정책, 계정과 복구 설정을 관리합니다.</p>
+      {busy && <p className="console-progress" role="status">처리 중입니다…</p>}
+      <fieldset disabled={busy} className="contents"><div className="settings-layout master-settings-layout"><nav className="admin-side-nav settings-navigation" aria-label="설정 메뉴">{sections.map(([key, label]) =>
         <button type="button" key={key} className={'block w-full text-left p-3 rounded ' + (tab === key ? 'bg-slate-800 text-white' : 'bg-white')} onClick={() => setTab(key)}>{label}</button>)}<button type="button" className={'block w-full text-left p-3 rounded ' + (tab === 'integration' ? 'bg-slate-800 text-white' : 'bg-white')} onClick={() => setTab('integration')}>외부 연동</button><button type="button" className={'block w-full text-left p-3 rounded ' + (tab === 'ownerPassword' ? 'bg-slate-800 text-white' : 'bg-white')} onClick={() => setTab('ownerPassword')}>사장님 비밀번호</button></nav>
-        <section className="flex-1 min-w-0 border rounded-lg p-6 bg-slate-50">
+        <section className="settings-content">
           {tab === 'ownerPassword' ? <OwnerPasswordSettings api={api} /> : tab === 'integration' ? <div className="space-y-12"><SheetIntegrationSettings api={api} /><CalendarIntegrationSettings api={api} /></div> : <>
           <header className="mb-6 border-b pb-5"><h2 className="text-xl font-semibold">{sectionInformation[tab].title}</h2><p className="mt-2">{sectionInformation[tab].purpose}</p><p className="mt-2 text-sm"><strong>반영 위치:</strong> {sectionInformation[tab].locations}</p><p className="mt-1 text-sm text-slate-600">예: {sectionInformation[tab].example}</p></header>
           {settings && <SettingFields value={settings[tab] as unknown as Tree} path={[tab]} update={update} />}

@@ -21,6 +21,7 @@ const hash = (value: string) => {
   );
 };
 const pin = String(crypto.randomInt(100000, 1000000));
+const masterPassword = crypto.randomBytes(24).toString('hex');
 let server: ChildProcess | undefined,
   browser: any,
   page: any,
@@ -55,7 +56,7 @@ async function main() {
     APP_SECRET: crypto.randomBytes(32).toString('hex'),
     REPRESENTATIVE_EMAIL: 'booking-test@example.com',
     STUDIO_OWNER_PASSWORD_HASH: hash(pin),
-    MASTER_ADMIN_PASSWORD_HASH: hash(crypto.randomBytes(24).toString('hex')),
+    MASTER_ADMIN_PASSWORD_HASH: hash(masterPassword),
     STUDIO_DEMO_SETTINGS_TEST_DIRECTORY: path.join(
       artifacts,
       'private-store-' + crypto.randomUUID(),
@@ -87,6 +88,9 @@ async function main() {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
   for (const route of [
+    '/master-control',
+    '/api/master-control/auth',
+    '/api/master-control/settings',
     '/owner',
     '/review',
     '/api/owner-control/auth',
@@ -106,6 +110,7 @@ async function main() {
   page = await context.newPage();
   page.setDefaultTimeout(25000);
   page.on('pageerror', (error: Error) => errors.push(String(error)));
+  page.on('console', (message: any) => { if (message.type() === 'error' && /In HTML|hydration|cannot contain/i.test(message.text())) errors.push(message.text()); });
   await context.route('**/*', (route: any) =>
     new URL(route.request().url()).origin === origin ? route.continue() : route.abort(),
   );
@@ -176,7 +181,7 @@ async function main() {
   await test('Month/date selection and pending filter show correct names time venue and review link', async () => {
     await page.getByRole('button', { name: '다음 달', exact: true }).click();
     await page.getByRole('button', { name: date + ' 예약 1건', exact: true }).click();
-    await page.getByRole('heading', { name: '테스트신랑 · 테스트신부', exact: true }).waitFor();
+    await page.getByRole('heading', { name: /테스트신랑 · 테스트신부/ }).waitFor();
     assert.match(
       await page.getByRole('region', { name: '예약 목록', exact: true }).innerText(),
       /13:30/,
@@ -208,6 +213,50 @@ async function main() {
         });
     }
   });
+  await test('Detail drawer uses original data, closes with ESC and retains calendar selection without sending mail', async () => {
+    const before = await (await context.request.get(origin + '/api/demo/mailbox')).json();
+    await page.getByRole('button', {name: date + ' 예약 1건', exact:true}).click();
+    for (const width of [390,1440]) {
+      await page.setViewportSize({width,height:1000});
+      await page.getByRole('button', {name:'예약 상세',exact:true}).click();
+      const dialog = page.getByRole('dialog',{name:'예약 상세',exact:true});
+      await dialog.getByText('booking-mobile@example.com',{exact:true}).waitFor();
+      await dialog.getByRole('link',{name:'예약 확인·수정 및 승인'}).waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false);
+      await page.screenshot({path:path.join(artifacts,'detail-'+width+'.png'),fullPage:false});
+      await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
+      assert.equal(await page.getByRole('button',{name:date+' 예약 1건',exact:true}).getAttribute('aria-pressed'),'true');
+    }
+    const after = await (await context.request.get(origin + '/api/demo/mailbox')).json();
+    assert.deepEqual(after,before);
+  });
+  await test('Hidden Master entry enforces rolling time window, cancellation, errors and separate authentication', async () => {
+    assert.equal((await context.request.get(origin+'/api/master-control/settings')).status(),401);
+    await page.goto(origin);
+    const copyright = page.getByRole('button',{name:/Copyright/});
+    for(let i=0;i<4;i++) await copyright.click();
+    assert.equal(await page.getByRole('dialog',{name:'관리자 인증'}).count(),0);
+    await page.waitForTimeout(3100); await copyright.click();
+    assert.equal(await page.getByRole('dialog',{name:'관리자 인증'}).count(),0);
+    for(let i=0;i<4;i++) await copyright.click();
+    let dialog = page.getByRole('dialog',{name:'관리자 인증'});
+    await dialog.waitFor(); await page.screenshot({path:path.join(artifacts,'master-login-modal.png'),fullPage:false}); await dialog.getByRole('button',{name:'취소',exact:true}).click();
+    await dialog.waitFor({state:'detached'});
+    for(let i=0;i<5;i++) await copyright.click();
+    await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
+    for(let i=0;i<5;i++) await copyright.click();
+    await dialog.getByLabel('관리자 비밀번호').fill('WRONG-TEST');
+    await dialog.getByRole('button',{name:'로그인',exact:true}).click();
+    await dialog.getByRole('alert').waitFor();
+    assert.equal((await context.request.get(origin+'/api/master-control/settings')).status(),401);
+    await dialog.getByLabel('관리자 비밀번호').fill(masterPassword);
+    await dialog.getByRole('button',{name:'로그인',exact:true}).click();
+    await page.waitForURL('**/master-control');
+    await page.getByRole('region',{name:'서비스 상태'}).waitFor();
+    assert.equal((await context.request.get(origin+'/api/master-control/settings')).status(),200);
+    await page.screenshot({path:path.join(artifacts,'master-console.png'),fullPage:true});
+    await page.goto(origin+'/owner'); await page.getByRole('button',{name:'대표 확인 대기 1건',exact:true}).click();
+  });
   await test('Authenticated Review uses same contract without token URL and GET does not send', async () => {
     const before = await (await context.request.get(origin + '/api/demo/mailbox')).json();
     await page.getByRole('link', { name: '내용 확인하기', exact: true }).click();
@@ -219,6 +268,16 @@ async function main() {
       (await context.request.get(origin + '/api/owner-control/contract?id=' + id)).status(),
       200,
     );
+  });
+  await test('Mobile Owner explicitly approves through existing Review, freezes snapshot and completes Demo send', async () => {
+    await page.setViewportSize({width:390,height:844});
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false);
+    await page.getByRole('button',{name:'최종 계약서 발송하기',exact:true}).click();
+    await page.getByText('최종 계약서 발송 완료',{exact:true}).waitFor({timeout:120000});
+    const detail = await (await context.request.get(origin+'/api/owner-control/contract?id='+id)).json();
+    assert.equal(detail.isAlreadySent,true); assert.equal(detail.snapshot.data.weddingDate,date);
+    assert.equal(detail.snapshot.data.groomName,'테스트신랑');
+    await page.screenshot({path:path.join(artifacts,'mobile-owner-approved.png'),fullPage:false});
   });
   await test('Logout removes calendar and captured cookie cannot reopen private data', async () => {
     await page.goto(origin + '/owner');

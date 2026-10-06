@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { OwnerBooking } from '@/types/ownerBooking';
 
-const statuses = { submitted: '대표 확인 대기', approved: '승인 · 발송 확인', sent: '계약 완료' };
+import { BookingDetail, bookingStatusLabels as statuses } from './BookingDetail';
+import { ConsoleNavigation, ConsoleLoading } from './ConsolePrimitives';
 const calendarStatuses = {
   disabled: '자동 등록 대상 아님',
   pending: '등록 대기',
@@ -44,12 +45,14 @@ export function OwnerBookings() {
     [selected, setSelected] = useState<string | null>(null),
     [pendingOnly, setPendingOnly] = useState(false),
     [cursor, setCursor] = useState<string | null>(null);
+  const [detail, setDetail] = useState<OwnerBooking | null>(null);
   const epoch = useRef(0),
     activity = useRef(Date.now());
   const clear = useCallback(() => {
     epoch.current++;
     setAuthenticated(false);
     setRows([]);
+    setDetail(null);
     setCursor(null);
     setPin('');
   }, []);
@@ -153,7 +156,7 @@ export function OwnerBookings() {
     waiting = rows.filter((row) => row.status === 'submitted').length;
   return (
     <main className="admin-workspace booking-workspace">
-      {!authenticated ? (
+      {loading ? <ConsoleLoading /> : !authenticated ? (
         <section className="booking-login admin-login">
           <p className="booking-eyebrow">OWNER ACCESS</p>
           <h1>사장님 로그인</h1>
@@ -198,6 +201,7 @@ export function OwnerBookings() {
         </section>
       ) : (
         <>
+          <ConsoleNavigation current="bookings" />
           <header className="booking-header">
             <div>
               <p className="booking-eyebrow">RESERVATIONS</p>
@@ -212,11 +216,7 @@ export function OwnerBookings() {
               >
                 새로고침
               </button>
-              <Link className="owner-button" href="/">고객 계약 화면</Link>
               <Link className="owner-button" href="/studio-control?tab=calendar">Google Calendar 설정</Link>
-              <Link className="owner-button" href="/studio-control">
-                운영 설정
-              </Link>
               <button
                 className="owner-button"
                 disabled={busy}
@@ -237,6 +237,7 @@ export function OwnerBookings() {
             </p>
           )}
           <div className="booking-overview">
+            <button className="booking-stat" onClick={() => { const today = seoulDate(); setMonth(today.slice(0,7)); setSelected(today); setPendingOnly(false); }}><span>오늘 촬영 · 확정 예약</span><strong>{rows.filter(row => row.weddingDate === seoulDate() && row.status !== 'submitted').length}<small>건{cursor ? ' 이상' : ''}</small></strong></button>
             <button
               className={'booking-stat' + (pendingOnly ? ' selected' : '')}
               onClick={() => {
@@ -255,15 +256,16 @@ export function OwnerBookings() {
               <span>선택한 달의 예약</span>
               <strong>
                 {rows.filter((row) => row.weddingDate.startsWith(month)).length}
-                <small>건</small>
+                <small>건{cursor ? ' 이상' : ''}</small>
               </strong>
             </div>
-            <p className="booking-muted">
+            <div className="booking-stat"><span>계약 진행 · 선택한 달</span><strong>{rows.filter(row => row.weddingDate.startsWith(month) && row.status === 'approved').length}<small>건{cursor ? ' 이상' : ''}</small></strong></div>
+          </div>
+            <p className="booking-muted booking-calendar-guide">
               이 달력에는 접수·승인·완료된 예약이 모두 표시됩니다.
               <br />
               Google Calendar에는 연동을 켠 뒤 대표 승인한 계약만 등록됩니다.
             </p>
-          </div>
           {cursor && (
             <div className="booking-partial">
               <p>
@@ -340,6 +342,7 @@ export function OwnerBookings() {
                           {entries.length}건
                         </small>
                       )}
+                      <span className="calendar-entry-list">{entries.slice(0,2).map(entry => <span className="calendar-entry" key={entry.contractId}><b>{entry.weddingTime}</b><span>{entry.groomName} · {entry.brideName}</span><em>{statuses[entry.status]}</em></span>)}{entries.length > 2 && <span>+{entries.length - 2}건 더 보기</span>}</span>
                     </button>
                   );
                 })}
@@ -399,9 +402,7 @@ export function OwnerBookings() {
                       </strong>
                       <span className={'booking-status ' + row.status}>{statuses[row.status]}</span>
                     </div>
-                    <h3>
-                      {row.groomName} · {row.brideName}
-                    </h3>
+                    <h3><button className="booking-detail-link" onClick={() => setDetail(row)} aria-label={row.groomName + ' · ' + row.brideName + ' 예약 상세'}>{row.groomName} · {row.brideName}<span aria-hidden="true"> ↗</span></button></h3>
                     <p>
                       {row.weddingVenue}
                       {row.weddingHall ? ' · ' + row.weddingHall : ''}
@@ -413,6 +414,7 @@ export function OwnerBookings() {
                       <span className="booking-muted">
                         Google Calendar · {calendarStatuses[row.calendarStatus]}
                       </span>
+                      <button className="owner-button" onClick={() => setDetail(row)}>예약 상세</button>
                       <Link
                         className={
                           'owner-button ' + (row.status === 'submitted' ? 'admin-primary' : '')
@@ -429,6 +431,7 @@ export function OwnerBookings() {
           </div>
         </>
       )}
+      {detail && authenticated && <BookingDetail key={detail.contractId} row={detail} onClose={() => setDetail(null)} onUnauthorized={clear} />}
       {message && (
         <p role="alert" className="booking-error">
           {message}

@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { ConsoleNavigation, ConsoleLoading } from './ConsolePrimitives';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { OwnerEditors, ownerMenus } from './OwnerEditors';
 import { CalendarIntegrationSettings } from './CalendarIntegrationSettings';
@@ -29,7 +29,7 @@ function ownerMessage(status: number, error: unknown, saving = false) {
   return saving ? '저장 결과를 확인하지 못했습니다. 최신 내용을 불러와 적용 여부를 확인한 뒤 다시 시도해 주세요.' : '요청을 완료하지 못했습니다. 잠시 후 다시 확인하거나 관리자에게 문의해 주세요.';
 }
 export function OwnerConsole() {
-  const [desktop, setDesktop] = useState(false), [authenticated, setAuthenticated] = useState(false), [password, setPassword] = useState('');
+  const [authenticated, setAuthenticated] = useState(false), [password, setPassword] = useState('');
   const [settings, setSettings] = useState<OwnerSettings | null>(null), [original, setOriginal] = useState<OwnerSettings | null>(null), [version, setVersion] = useState(0);
   const [benefits, setBenefits] = useState<{ id: string; timing: string; condition: string }[]>([]);
   const [tab, setTab] = useState<Tab>('home'), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [confirmSave, setConfirmSave] = useState(false);
@@ -56,16 +56,15 @@ export function OwnerConsole() {
     if (sequence !== loadSequence.current || edit !== editEpoch.current || session !== sessionEpoch.current) return;
     setSettings(data.settings); setOriginal(structuredClone(data.settings)); setVersion(data.version); setBenefits(data.benefits); setAuthenticated(true); activity.current = Date.now();
   }, [api]);
-  useEffect(() => { const query = window.matchMedia('(min-width: 1024px)'); const change = () => setDesktop(query.matches); change(); query.addEventListener('change', change); return () => query.removeEventListener('change', change); }, []);
   useEffect(() => {
-    if (!desktop || attemptedInitialLoad.current) return;
+    if (attemptedInitialLoad.current) return;
     attemptedInitialLoad.current = true;
     const requested = new URLSearchParams(window.location.search).get('tab');
     if (requested === 'calendar' || requested === 'sheets') setTab(requested);
     load().catch(() => {}).finally(() => setInitialLoading(false));
-  }, [desktop, load]);
+  }, [load]);
   useEffect(() => {
-    if (!authenticated || !desktop) return;
+    if (!authenticated) return;
     const active = () => { activity.current = Date.now(); };
     window.addEventListener('pointerdown', active); window.addEventListener('keydown', active);
     const timer = window.setInterval(() => {
@@ -73,7 +72,7 @@ export function OwnerConsole() {
       if (activity.current > heartbeat.current && Date.now() - heartbeat.current >= 60000) api('auth').catch(error => setMessage(error.message));
     }, 30000);
     return () => { clearInterval(timer); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); };
-  }, [authenticated, desktop, clear, api]);
+  }, [authenticated, clear, api]);
   useEffect(() => { if (!confirmSave) return; const prior = document.activeElement as HTMLElement | null; dialog.current?.focus(); return () => prior?.focus(); }, [confirmSave]);
   const dirty = JSON.stringify(settings) !== JSON.stringify(original), changes = settings && original ? summaries(original, settings) : [];
   async function perform(task: () => Promise<void>) { if (busy) return; setBusy(true); setMessage(''); try { await task(); } catch (error) { setMessage(error instanceof Error ? error.message : '요청을 완료하지 못했습니다.'); } finally { setBusy(false); } }
@@ -83,17 +82,18 @@ export function OwnerConsole() {
     if (settings.codes.some(code => !code.code.trim() || code.amount <= 0)) { setMessage('할인코드와 0원보다 큰 할인금액을 입력해 주세요.'); return; }
     setConfirmSave(true);
   }
-  if (!desktop) return <main className="admin-workspace p-6"><section className="admin-mobile-card"><p className="text-sm font-semibold mb-4">안전한 운영 설정</p><h1 className="text-xl font-semibold">운영 설정은 PC에서 이용해 주세요.</h1><p className="mt-3">화면 너비 1,024px 이상에서 이용할 수 있습니다.</p><p className="mt-4 text-sm">작은 화면에서 설정을 잘못 변경하지 않도록 PC에서 편집할 수 있습니다. 고객 계약 작성은 모바일에서도 이용할 수 있습니다.</p></section></main>;
   return <main className="admin-workspace max-w-6xl mx-auto w-full p-8">
-    <header className="admin-page-header mb-8"><div className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-bold">운영 설정</h1><nav className="flex gap-3"><Link className="owner-button" onClick={event => { if (dirty && !window.confirm('저장하지 않은 변경을 남기고 이동할까요? 입력한 내용은 사라집니다.')) event.preventDefault(); }} href="/owner">예약 달력</Link><Link className="owner-button" onClick={event => { if (dirty && !window.confirm('저장하지 않은 변경을 남기고 이동할까요? 입력한 내용은 사라집니다.')) event.preventDefault(); }} href="/">고객 계약 화면</Link></nav></div><p className="mt-3 text-slate-600">상품과 혜택을 쉽게 관리하세요. 저장한 내용은 이후 새로 계약하는 고객에게 적용되며, 이미 확정된 계약의 내용과 금액은 유지됩니다.</p></header>
+    <ConsoleNavigation current="settings" dirty={dirty} /><header className="admin-page-header mb-8"><p className="booking-eyebrow">STUDIO SETTINGS</p><h1 className="text-3xl font-semibold">운영 설정</h1><p className="mt-3">상품과 혜택, 외부 연동을 관리하세요. 변경사항은 새 계약부터 적용되며 이미 확정된 계약은 유지됩니다.</p></header>
     {message && !confirmSave && <p role="status" className="border rounded-lg p-4 my-5 bg-slate-50 whitespace-pre-wrap">{message}</p>}
-    {initialLoading ? <p role="status" className="p-6 border rounded-xl">로그인 상태와 운영 설정을 불러오고 있습니다…</p> : !authenticated ? <form className="admin-login max-w-md space-y-5" onSubmit={event => { event.preventDefault(); perform(async () => { try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); } }); }}>
+    {initialLoading ? <ConsoleLoading>로그인 상태와 운영 설정을 불러오고 있습니다…</ConsoleLoading> : !authenticated ? <form className="admin-login max-w-md space-y-5" onSubmit={event => { event.preventDefault(); perform(async () => { try { await api('auth', 'POST', { password }); await load(); } finally { setPassword(''); } }); }}>
       <label className="block font-medium">대표 비밀번호<input aria-label="대표 비밀번호" className="owner-input" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required /></label><button className="owner-button admin-primary w-full" disabled={busy}>로그인</button>
     </form> : <>
       <div className="admin-toolbar flex justify-between mb-6"><button className="owner-button" disabled={busy} onClick={() => setTab('home')}>운영 메뉴</button><div className="flex gap-3"><button className="owner-button" disabled={busy} onClick={() => { if (!dirty || window.confirm('저장하지 않은 변경을 버리고 최신 내용을 불러올까요?')) perform(load); }}>최신 내용 불러오기</button><button className="owner-button" disabled={busy} onClick={() => perform(async () => { await api('auth', 'DELETE', {}); clear(); setMessage('로그아웃되었습니다.'); })}>로그아웃</button></div></div>
       {dirty && <section className="mb-6 sticky top-2 z-20 border rounded-xl p-6 bg-slate-50"><h2 className="font-semibold">저장하지 않은 변경사항이 있습니다.</h2><p className="mt-2 text-sm">메뉴를 바꿔도 입력한 내용은 유지됩니다. 저장 전에 변경 내용을 확인해 주세요.</p><button className="owner-button mt-4" disabled={busy} onClick={confirm}>변경사항 저장</button></section>}
-      <fieldset disabled={busy}>
-        {tab === 'home' ? <div className="admin-menu-grid">{ownerMenus.map(([key, title, text]) => <section key={key} className="admin-menu-card"><h2 className="text-xl font-semibold">{title}</h2><p className="mt-3 mb-5 text-slate-600">{text}</p><button className="owner-button" onClick={() => setTab(key)}>{key === 'products' ? '상품 관리' : key === 'options' ? '옵션 관리' : key === 'discounts' ? '할인 관리' : key === 'codes' ? '할인코드 관리' : key === 'calendar' ? 'Google Calendar 설정' : 'Google Sheets 설정'}</button></section>)}</div> : <section className="border rounded-xl p-7 bg-white">{tab !== 'calendar' && tab !== 'sheets' && <header className="admin-page-header mb-7"><h2 className="text-2xl font-semibold mb-3">{ownerMenus.find(([key]) => key === tab)?.[1]}</h2><p className="text-slate-600">{ownerMenus.find(([key]) => key === tab)?.[2]}</p></header>}{tab === 'calendar' ? <CalendarIntegrationSettings api={api} owner /> : tab === 'sheets' ? <SheetIntegrationSettings api={api} owner /> : settings && <OwnerEditors key={tab} kind={tab} settings={settings} update={next => { editEpoch.current++; setSettings(next); setMessage(''); }} benefits={benefits} />}</section>}
+      {busy && <p className="console-progress" role="status">처리 중입니다. 잠시만 기다려 주세요…</p>}
+      <fieldset disabled={busy} className={tab === 'home' ? '' : 'settings-layout'}>
+        {tab !== 'home' && <nav className="settings-navigation" aria-label="운영 설정 메뉴"><p>상품과 혜택</p>{ownerMenus.map(([key,title], index) => <div key={key}>{index === 4 && <p>외부 연동</p>}<button type="button" aria-current={tab === key ? 'page' : undefined} onClick={() => setTab(key)}>{title}</button></div>)}</nav>}
+        {tab === 'home' ? <div className="admin-menu-grid">{ownerMenus.map(([key, title, text]) => <section key={key} className="admin-menu-card"><h2 className="text-xl font-semibold">{title}</h2><p className="mt-3 mb-5 text-slate-600">{text}</p><button className="owner-button" onClick={() => setTab(key)}>{key === 'products' ? '상품 관리' : key === 'options' ? '옵션 관리' : key === 'discounts' ? '할인 관리' : key === 'codes' ? '할인코드 관리' : key === 'calendar' ? 'Google Calendar 설정' : 'Google Sheets 설정'}</button></section>)}</div> : <section className="settings-content">{tab !== 'calendar' && tab !== 'sheets' && <header className="admin-page-header mb-7"><h2 className="text-2xl font-semibold mb-3">{ownerMenus.find(([key]) => key === tab)?.[1]}</h2><p className="text-slate-600">{ownerMenus.find(([key]) => key === tab)?.[2]}</p></header>}{tab === 'calendar' ? <CalendarIntegrationSettings api={api} owner /> : tab === 'sheets' ? <SheetIntegrationSettings api={api} owner /> : settings && <OwnerEditors key={tab} kind={tab} settings={settings} update={next => { editEpoch.current++; setSettings(next); setMessage(''); }} benefits={benefits} />}</section>}
       </fieldset>
 
       {confirmSave && settings && <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-8 z-50"><section ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-label="변경사항 확인" className="bg-white rounded-xl p-7 w-full max-w-3xl max-h-[85vh] overflow-y-auto" onKeyDown={event => {
