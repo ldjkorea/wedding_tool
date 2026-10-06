@@ -2,7 +2,7 @@
 import { discountLabel, getPromotionDayName, isPromotionDate, isDiscountActive, getDiscountById } from '@/services/configuration';
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, X, Sparkles } from 'lucide-react';
 
 interface CalendarModalProps {
@@ -25,6 +25,13 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   // 뷰 상태 (연도 및 월)
   const [viewYear, setViewYear] = useState<number>(currentYear);
   const [viewMonth, setViewMonth] = useState<number>(today.getMonth()); // 0 ~ 11
+  const modal = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
+    modal.current?.showModal(); document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, [isOpen]);
 
   // 모달이 열리거나 selectedDate가 바뀔 때 뷰 초기화
   useEffect(() => {
@@ -69,9 +76,9 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   const availableYears = [currentYear - 1, currentYear, currentYear + 1, currentYear + 2];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
-      onClick={onClose}
+    <dialog ref={modal} aria-label="예식일 선택"
+      className="customer-calendar-dialog"
+      onCancel={event => { event.preventDefault(); onClose(); }}
     >
       <div
         className="bg-[rgb(var(--studio-background))] border border-[rgb(var(--studio-line))] rounded-3xl p-5 sm:p-6 w-full max-w-sm shadow-2xl space-y-4"
@@ -86,6 +93,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="예식일 선택 닫기"
             className="p-1.5 rounded-full hover:bg-[rgb(var(--studio-border))] text-[rgb(var(--studio-muted))] hover:text-[rgb(var(--studio-primary))] transition-colors"
           >
             <X className="w-5 h-5" />
@@ -106,6 +114,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           <div className="flex items-center gap-1.5 font-bold text-base sm:text-lg text-[rgb(var(--studio-primary))]">
             {/* 연도 드롭다운 */}
             <select
+              aria-label="예식 연도"
               value={viewYear}
               onChange={(e) => setViewYear(Number(e.target.value))}
               className="bg-transparent text-[rgb(var(--studio-primary))] font-bold focus:outline-none cursor-pointer py-1 px-1 rounded hover:bg-[rgb(var(--studio-border))]/50 transition-colors"
@@ -119,6 +128,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
             {/* 월 드롭다운 */}
             <select
+              aria-label="예식 월"
               value={viewMonth}
               onChange={(e) => setViewMonth(Number(e.target.value))}
               className="bg-transparent text-[rgb(var(--studio-primary))] font-bold focus:outline-none cursor-pointer py-1 px-1 rounded hover:bg-[rgb(var(--studio-border))]/50 transition-colors"
@@ -234,6 +244,6 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

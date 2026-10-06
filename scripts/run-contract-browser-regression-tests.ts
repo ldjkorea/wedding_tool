@@ -128,7 +128,7 @@ async function fillCoreCustomer(email: string) {
   await page.locator('input[type="email"]').fill(email);
 }
 async function confirmAndSubmit() {
-  await page.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
+  await page.getByRole('button', { name: /^(계약 내용 최종 확인하기|최종 확인하기)/ }).first().click();
   await page.getByRole('button', { name: '계약정보 제출하기', exact: true }).click();
 }
 function submittedRecord(email: string) {
@@ -285,8 +285,8 @@ async function main() {
       const button = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === '계약정보 제출하기');
       return button && !button.disabled;
     });
-    assert.equal(dialogs.length, 1);
-    assert.match(dialogs[0], /^제출 오류:/);
+    assert.equal(dialogs.length, 0);
+    await page.getByRole('alert').filter({ hasText: /실패|오류|확인|완료하지/ }).waitFor();
     assert.equal(await page.getByText('계약 신청이 정상 접수되었습니다', { exact: true }).count(), 0);
     assert.deepEqual(actions, ['submit']); assert.equal(h.deliveries.length, before);
   });

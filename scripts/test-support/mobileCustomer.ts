@@ -27,11 +27,11 @@ export async function exerciseMobileCustomer(page: any, h: ReturnType<typeof ins
     if (schema.referralSource.enabled && schema.referralSource.required) await page.getByRole('button', { name: getClientContent().referralOptions[0], exact: true }).click();
     if (invalidChecks) {
       await page.locator('input[type="email"]').fill('bad-email');
-      await page.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
+      await page.getByRole('button', { name: /^(계약 내용 최종 확인하기|최종 확인하기)/ }).click();
       assert.equal(await page.getByRole('button', { name: '계약정보 제출하기', exact: true }).count(), 0);
       await page.locator('input[type="email"]').fill(email);
       await page.locator('input[id="contract-field-groomPhone"]').fill('--------');
-      await page.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
+      await page.getByRole('button', { name: /^(계약 내용 최종 확인하기|최종 확인하기)/ }).click();
       assert.equal(await page.getByRole('button', { name: '계약정보 제출하기', exact: true }).count(), 0);
       await page.locator('input[id="contract-field-groomPhone"]').fill(h.form.groomPhone);
     }
@@ -39,7 +39,7 @@ export async function exerciseMobileCustomer(page: any, h: ReturnType<typeof ins
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'Mobile form must not require horizontal scrolling');
   }
   await fill(true); await page.screenshot({ path: screenshot, fullPage: true });
-  await page.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
+  await page.getByRole('button', { name: /^(계약 내용 최종 확인하기|최종 확인하기)/ }).click();
   await page.getByRole('button', { name: '계약정보 제출하기', exact: true }).evaluate((button: HTMLButtonElement) => { button.click(); button.click(); });
   await page.getByText('계약 신청이 정상 접수되었습니다', { exact: true }).waitFor();
   const records = () => [...h.files.values()].filter(file => file.name.endsWith('.json')).map(file => JSON.parse(file.bytes.toString('utf8'))).filter(record => record.formData?.email === email);
@@ -48,7 +48,7 @@ export async function exerciseMobileCustomer(page: any, h: ReturnType<typeof ins
   assert.deepEqual(storage, { local: [], session: [] });
   await page.reload(); assert.equal(await page.getByText('계약 신청이 정상 접수되었습니다', { exact: true }).count(), 0);
   assert.ok(!(await page.locator('body').innerText()).includes(email)); assert.equal(h.deliveries.length, before);
-  await fill(false); await page.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
+  await fill(false); await page.getByRole('button', { name: /^(계약 내용 최종 확인하기|최종 확인하기)/ }).click();
   await page.getByRole('button', { name: '계약정보 제출하기', exact: true }).click();
   await page.getByText('계약 신청이 정상 접수되었습니다', { exact: true }).waitFor();
   assert.equal(records().length, 1); assert.equal(records()[0].contractId, id); assert.equal(h.deliveries.length, before);
@@ -56,7 +56,10 @@ export async function exerciseMobileCustomer(page: any, h: ReturnType<typeof ins
 }
 
 export const mobileProfiles = [
+  { name: 'mobile-320', viewport: { width: 320, height: 740 }, isMobile: true, hasTouch: true },
   { name: 'mobile-chrome', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true },
   { name: 'kakao-ua-simulation', viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true,
     userAgent: 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 KAKAOTALK/11.2.1' },
+  { name: 'mobile-430', viewport: { width: 430, height: 932 }, isMobile: true, hasTouch: true },
+  { name: 'tablet', viewport: { width: 768, height: 1024 }, hasTouch: true },
 ];

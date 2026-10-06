@@ -9,6 +9,7 @@ interface PriceSummaryStickyProps {
   onProceed?: () => void;
   proceedLabel?: string;
   isSubmitting?: boolean;
+  inlineAction?: boolean;
 }
 
 export const PriceSummarySticky: React.FC<PriceSummaryStickyProps> = ({
@@ -16,13 +17,14 @@ export const PriceSummarySticky: React.FC<PriceSummaryStickyProps> = ({
   onProceed,
   proceedLabel = '최종 확인 및 제출',
   isSubmitting = false,
+  inlineAction = true,
 }) => {
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
 
   return (
     <>
       {/* 1. 데스크톱용 카드 (또는 인라인) */}
-      <div className="bg-[#FFFFFF] border border-[rgb(var(--studio-border))] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
+      <div className="hidden sm:block bg-[#FFFFFF] border border-[rgb(var(--studio-border))] rounded-2xl p-5 sm:p-6 shadow-sm space-y-4">
         <h4 className="text-xs font-semibold tracking-wider text-[rgb(var(--studio-muted))] uppercase pb-3 border-b border-[rgb(var(--studio-surface))]">
           실시간 계약금액 요약
         </h4>
@@ -99,7 +101,7 @@ export const PriceSummarySticky: React.FC<PriceSummaryStickyProps> = ({
           )}
         </div>
 
-        {onProceed && (
+        {onProceed && inlineAction && (
           <button
             type="button"
             onClick={onProceed}
@@ -147,9 +149,12 @@ export const PriceSummarySticky: React.FC<PriceSummaryStickyProps> = ({
         )}
 
         <div className="flex items-center justify-between gap-3">
-          <div
+          <button
+            type="button"
+            aria-expanded={isMobileOpen}
+            aria-label="계약금액 상세 내역"
             onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="cursor-pointer flex flex-col"
+            className="cursor-pointer flex flex-col text-left min-h-11"
           >
             <div className="flex items-center gap-1 text-[11px] text-[rgb(var(--studio-muted))]">
               <span>예상 계약금액</span>
@@ -158,7 +163,7 @@ export const PriceSummarySticky: React.FC<PriceSummaryStickyProps> = ({
             <span className="text-lg font-serif font-bold text-[rgb(var(--studio-primary))] tabular-nums whitespace-nowrap">
               {formatKRW(pricing.contractTotal)}
             </span>
-          </div>
+          </button>
 
           {onProceed && (
             <button

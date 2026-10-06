@@ -19,6 +19,7 @@ import { withRuntimeConfiguration } from '../src/services/serverRuntimeConfigura
 import { configurationBinding, snapshotBinding } from '../src/lib/contractWorkflow';
 import { getStudioConfig, getProducts, getClientContent, getConfigurationRuntime, getDiscountById } from '../src/services/configuration';
 import { calculateContractPrice } from '../src/lib/pricing';
+import { deduplicateRead } from '../src/lib/inflightRequest';
 import { generateCustomerContractEmail } from '../src/lib/emailTemplates';
 import { ContractDocument } from '../src/components/pdf/ContractDocument';
 import { signedGasCall } from '../src/services/gasTransport';
@@ -42,12 +43,44 @@ async function owrite(changes: unknown, version: number) { return owner.PUT(oreq
 async function test(name: string, run: () => void | Promise<void>) { try { await run(); results.push({ name, status: 'passed' }); console.log('PASS ' + name); } catch (error) { results.push({ name, status: 'failed', error: String(error) }); throw error; } }
 async function send(email: string) { const request = h.request('/api/submit-contract', { ...h.form, productId: getProducts()[0].id, optionIds: [], email, partnerDiscount: false, portfolioConsent: false, shootRequestNotes: 'Role fixture', referralSource: getClientContent().referralOptions[0] }); request.headers.set('X-Contract-Configuration', await withRuntimeConfiguration(async () => configurationBinding())); return submit(request); }
 async function main() {
+  await test('In-flight reads are isolated per console/session, share work and evict failures', async () => {
+    const reads = new Map<string, Promise<number>>(); let calls = 0;
+    const work = () => new Promise<number>(resolve => { calls++; setTimeout(() => resolve(calls), 5); });
+    await Promise.all([deduplicateRead(reads,'owner-a:settings',work),deduplicateRead(reads,'owner-a:settings',work)]);
+    assert.equal(calls,1); assert.equal(reads.size,0);
+    await Promise.all([deduplicateRead(reads,'owner-a:settings',work),deduplicateRead(reads,'owner-b:settings',work)]);
+    assert.equal(calls,3);
+    await assert.rejects(deduplicateRead(reads,'owner-a:settings',async()=>{throw Error('Fixture outage');}));
+    assert.equal(reads.size,0); assert.equal(await deduplicateRead(reads,'owner-a:settings',async()=>42),42);
+  });
   await test('Anonymous Owner and Master APIs deny read/write/session/restore', async () => {
     for (const response of [await owner.GET(oreq()), await owner.PUT(oreq('PUT', {})), await master.GET(mreq()), await ownerAuth.GET(oreq()), await restore(req('/api/master-control/restore', 'POST', {}))]) assert.equal(response.status, 401);
   });
   await test('Legacy administrator hash remains Master login; Owner has independent credential', async () => {
     const response = await login('master'); assert.match(response.headers.get('set-cookie')!, /studio_admin_session=.*Secure.*HttpOnly.*SameSite=strict/i); assert.equal((await mhead()).revision, 0);
     const ownerResponse = await login('owner'); assert.match(ownerResponse.headers.get('set-cookie')!, /studio_owner_session=.*Secure.*HttpOnly.*SameSite=strict/i);
+    assert.match(ownerResponse.headers.get('server-timing')!, /gas_calls;desc="2"/);
+    assert.match(cookies.owner, /studio_owner_session=v2\.[a-f0-9]{64}\.[a-f0-9]{64}$/);
+  });
+  await test('Signed Owner session removes credential re-read but still checks live role/session on every action', async () => {
+    const response = await owner.GET(oreq()); assert.equal(response.status, 200);
+    assert.match(response.headers.get('server-timing')!, /gas_calls;desc="1"/);
+    assert.match((await master.GET(mreq())).headers.get('server-timing')!, /gas_calls;desc="1"/);
+    const parts = cookies.owner.split('.'); parts[1] = '0'.repeat(64);
+    assert.equal((await owner.GET(req('/api/owner-control/settings', 'GET', undefined, parts.join('.')))).status, 401);
+    parts[1] = cookies.owner.split('.')[1]; parts[2] = '0'.repeat(64);
+    assert.equal((await owner.GET(req('/api/owner-control/settings', 'GET', undefined, parts.join('.')))).status, 401);
+    h.transport('http500'); assert.notEqual((await owner.GET(oreq())).status, 200); h.transport('');
+  });
+  await test('Previously issued Owner cookies remain usable without weakening backend revocation', async () => {
+    const raw = crypto.randomBytes(32).toString('hex');
+    const id = crypto.createHmac('sha256', process.env.APP_SECRET!).update('studio-owner-session\n' + process.env.STUDIO_OWNER_PASSWORD_HASH! + '\n' + raw).digest('hex');
+    const state = JSON.parse(h.properties.get(authKey)!);
+    state.sessions[id] = { createdAt: Date.now(), lastSeen: Date.now(), role: 'owner' }; h.properties.set(authKey, JSON.stringify(state));
+    const legacy = req('/api/owner-control/settings', 'GET', undefined, 'studio_owner_session=' + raw);
+    assert.equal((await owner.GET(legacy)).status, 200);
+    delete state.sessions[id]; h.properties.set(authKey, JSON.stringify(state));
+    assert.equal((await owner.GET(legacy)).status, 401);
   });
   await test('Unconfigured production Owner initial PIN is blocked while Master remains accessible', async () => {
     const value = process.env.STUDIO_OWNER_PASSWORD_HASH; delete process.env.STUDIO_OWNER_PASSWORD_HASH;

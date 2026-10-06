@@ -3,7 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAppSecret, getServerConfig, getDemoServerConfig, isDemoMode, requireSetting } from '@/lib/serverConfig';
 import { signedGasCall, GasRequestError } from './gasTransport';
 import { requireSettingsEnabled } from './studioSettingsStore';
-import { readOwnerCredential, ensureOwnerCredentialReady } from './ownerCredentials';
+import { readOwnerCredential, ownerCredentialFromResult, ensureOwnerCredentialReady } from './ownerCredentials';
+import { getBaseClientConfiguration } from './configuration';
 
 class AdminUnauthorized extends Error {}
 export type AdminRole = 'owner' | 'master';
@@ -28,6 +29,21 @@ export function validateAdminPasswordHash(role: AdminRole = 'master'): string {
 function sessionId(raw: string, role: AdminRole, hash: string) {
   return crypto.createHmac('sha256', getAppSecret()).update((role === 'owner' ? 'studio-owner-session\n' : 'studio-admin-session\n') + hash + '\n' + raw).digest('hex');
 }
+function ownerCookieSignature(id: string) {
+  // Bind the cookie to role, deployment secret, studio and environment credential.
+  // GAS remains authoritative for expiry, logout and Master password-reset revocation.
+  return crypto.createHmac('sha256', getAppSecret()).update('owner-cookie-v2\n' +
+    getBaseClientConfiguration().studioConfig.studioId + '\n' +
+    (process.env.STUDIO_OWNER_PASSWORD_HASH?.trim() || 'master-managed') + '\n' + id).digest('hex');
+}
+function signedOwnerCookie(id: string) { return 'v2.' + id + '.' + ownerCookieSignature(id); }
+function ownerSessionFromCookie(raw: string): string | null {
+  const match = /^v2\.([a-f0-9]{64})\.([a-f0-9]{64})$/.exec(raw);
+  if (!match) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(match[2], 'hex'), Buffer.from(ownerCookieSignature(match[1]), 'hex')))
+    throw new AdminUnauthorized('관리자 인증이 필요합니다.');
+  return match[1];
+}
 export function adminOrigin(req: NextRequest) {
   const origin = isDemoMode() ? getDemoServerConfig().appUrl : getServerConfig().appUrl;
   if (req.headers.get('origin') !== origin || req.headers.get('sec-fetch-site') === 'cross-site') throw new Error('관리자 요청 출처를 확인할 수 없습니다.');
@@ -35,8 +51,8 @@ export function adminOrigin(req: NextRequest) {
 }
 export async function loginAdmin(password: unknown, role: AdminRole = 'master'): Promise<string> {
   requireSettingsEnabled();
-  await signedGasCall('admin_attempt', { role });
-  const credential = role === 'owner' ? await readOwnerCredential() : null;
+  const attempt = await signedGasCall('admin_attempt', { role });
+  const credential = role === 'owner' ? await ownerCredentialFromResult(attempt) : null;
   const hash = credential?.hash || validateAdminPasswordHash(role);
   if (typeof password !== 'string' || (role === 'owner' ? !/^\d{6}$/.test(password) && password.length < 12 : password.length < 12) || password.length > 1024) throw new AdminUnauthorized('인증 정보를 확인해 주세요.');
   const parts = hash.split('$');
@@ -48,22 +64,25 @@ export async function loginAdmin(password: unknown, role: AdminRole = 'master'):
   }
   if (credential) ensureOwnerCredentialReady(credential);
   const raw = crypto.randomBytes(32).toString('hex');
-  await signedGasCall('admin_login', { sessionId: sessionId(raw, role, hash), role, ...(credential ? { credentialRevision: credential.revision } : {}) });
-  return raw;
+  const id = sessionId(raw, role, hash);
+  await signedGasCall('admin_login', { sessionId: id, role, ...(credential ? { credentialRevision: credential.revision } : {}) });
+  return role === 'owner' ? signedOwnerCookie(id) : raw;
 }
 export async function requireAdmin(req: NextRequest, role: AdminRole = 'master', checkedByAction = false): Promise<string> {
   requireSettingsEnabled();
   const raw = req.cookies.get(role === 'owner' ? OWNER_COOKIE : ADMIN_COOKIE)?.value;
-  if (!raw || !/^[a-f0-9]{64}$/.test(raw)) throw new AdminUnauthorized('관리자 인증이 필요합니다.');
-  const credential = role === 'owner' ? await readOwnerCredential() : null;
+  if (!raw) throw new AdminUnauthorized('관리자 인증이 필요합니다.');
+  const signedId = role === 'owner' ? ownerSessionFromCookie(raw) : null;
+  if (!signedId && !/^[a-f0-9]{64}$/.test(raw)) throw new AdminUnauthorized('관리자 인증이 필요합니다.');
+  const credential = role === 'owner' && !signedId ? await readOwnerCredential() : null;
   if (credential) ensureOwnerCredentialReady(credential);
-  const id = sessionId(raw, role, credential?.hash || validateAdminPasswordHash(role));
+  const id = signedId || sessionId(raw, role, credential?.hash || validateAdminPasswordHash(role));
   // owner_read/owner_bookings revalidate the session within their own GAS action.
   if (!checkedByAction) await signedGasCall('admin_session', { sessionId: id, role });
   return id;
 }
 export async function logoutAdmin(req: NextRequest, role: AdminRole = 'master') {
-  const id = await requireAdmin(req, role);
+  const id = await requireAdmin(req, role, true);
   await signedGasCall('admin_logout', { sessionId: id, role });
 }
 export function setAdminCookie(response: NextResponse, raw: string, clear = false, role: AdminRole = 'master') {

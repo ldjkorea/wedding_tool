@@ -412,10 +412,12 @@ function settingsAction(action, payload) {
     return { success: true, revision: next.revision };
   }
   if (action === "admin_attempt") {
+    if (payload.role !== "owner" && payload.role !== "master") throw new Error("Unauthorized admin");
     const state = readAdminState(payload);
     if (state.attempts.length >= 10) throw new Error("Too many attempts");
     state.attempts.push(Date.now()); writeAdminState(payload, state);
-    return { success: true };
+    const credential = payload.role === "owner" ? readOwnerCredentialState(payload) : {};
+    return Object.assign({ success: true }, credential);
   }
   if (action === "admin_login") {
     const state = readAdminState(payload);
@@ -809,7 +811,7 @@ function calendarError(error) {
 }
 function calendarAdminAction(action, payload) {
   const extra = action === "calendar_toggle" ? ["enabled","durationMinutes","expectedRevision"] : action === "calendar_create" ? ["expectedRevision","displayName"] : action === "calendar_retry" ? ["contractId"] : action === "calendar_status" ? ["cursor"] : null;
-  if (!extra || Object.keys(payload).some(function(key) { return !["studioId","sessionId"].concat(extra).includes(key); })) throw new Error("Invalid integration input");
+  if (!extra || Object.keys(payload).some(function(key) { return !["studioId","sessionId","role"].concat(extra).includes(key); })) throw new Error("Invalid integration input");
   const auth = sheetStateTransaction(function() { return requireAdminSession(payload); });
   let config = readCalendarConfig(payload.studioId);
   if (action === "calendar_toggle") {

@@ -1,3 +1,4 @@
+import { measureRoute } from '@/services/requestTiming';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   adminOrigin,
@@ -8,7 +9,7 @@ import {
 } from '@/services/adminAuthentication';
 import { readJsonRequest } from '@/lib/apiSafety';
 export const dynamic = 'force-dynamic';
-export async function POST(req: NextRequest) {
+export const POST = measureRoute(async (req: NextRequest) => {
   try {
     adminOrigin(req);
     const body = await readJsonRequest(req, 4096);
@@ -26,4 +27,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return adminError(error);
   }
-}
+});

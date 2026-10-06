@@ -9,6 +9,6 @@ export async function loadRuntimeConfiguration() {
   const revision = await readRuntimeSettings();
   return createConfigurationRuntime(revision ? composeConfiguration(revision.settings) : getBaseClientConfiguration(), revision?.revision, revision?.hash);
 }
-export async function withRuntimeConfiguration<T>(work: () => Promise<T>): Promise<T> {
-  return contexts.run(await loadRuntimeConfiguration(), work);
+export async function withRuntimeConfiguration<T>(work: () => Promise<T>, runtime?: ConfigurationRuntime): Promise<T> {
+  return contexts.run(runtime || await loadRuntimeConfiguration(), work);
 }

@@ -16,6 +16,11 @@ export function hashPassword(password: string, salt = crypto.randomBytes(16)): P
 /** Authentication storage is private and independent of restorable business settings. */
 export async function readOwnerCredential(): Promise<OwnerCredential> {
   const result = await signedGasCall('admin_owner_credential_read', {});
+  return ownerCredentialFromResult(result);
+}
+
+/** Decode only a server-to-server response; never send a credential to the browser. */
+export async function ownerCredentialFromResult(result: Record<string, unknown>): Promise<OwnerCredential> {
   if (!Number.isSafeInteger(result.revision) || Number(result.revision) < 0)
     throw new Error('서버 설정 오류: 대표 비밀번호 저장 상태를 확인해 주세요.');
   const revision = Number(result.revision);

@@ -8,8 +8,11 @@ import { configurationBinding } from '@/lib/contractWorkflow';
 import type { StudioSettings } from '@/types/studioSettings';
 export const dynamic = 'force-dynamic';
 import { loadRuntimeConfiguration } from '@/services/serverRuntimeConfiguration';
+import { cache } from 'react';
+// React cache is request scoped: metadata and the page share a read, never tenants or requests.
+const loadPageConfiguration = cache(loadRuntimeConfiguration);
 export async function generateMetadata() {
-  const { config } = await loadRuntimeConfiguration();
+  const { config } = await loadPageConfiguration();
   return { ...config.content.metadata, icons: { icon: config.studioConfig.logo } };
 }
 export default async function Page() {
@@ -18,5 +21,5 @@ export default async function Page() {
     const { config } = getConfigurationRuntime();
     const settings = Object.fromEntries(editableSections.map(key => [key, config[key]])) as unknown as StudioSettings;
     return <RuntimeContractScreen screen="customer" settings={settings} binding={configurationBinding()} />;
-  });
+  }, await loadPageConfiguration());
 }

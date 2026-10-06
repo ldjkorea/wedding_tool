@@ -1,3 +1,4 @@
+import { measureRoute } from '@/services/requestTiming';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, adminHeaders, adminError } from '@/services/adminAuthentication';
 import { signedGasCall } from '@/services/gasTransport';
@@ -6,7 +7,7 @@ import { MockBackendAdapter } from '@/services/mockBackendAdapter';
 import type { OwnerBooking } from '@/types/ownerBooking';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
-export async function GET(req: NextRequest) {
+export const GET = measureRoute(async (req: NextRequest) => {
   try {
     const sessionId = await requireAdmin(req, 'owner', true);
     const cursor = req.nextUrl.searchParams.get('cursor');
@@ -70,4 +71,4 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return adminError(error);
   }
-}
+});

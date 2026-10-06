@@ -36,6 +36,7 @@ export async function demoSettingsCall(action: string, payload: Record<string, u
       return { success: true, hash: state.ownerCredential?.hash ?? null, revision: state.ownerCredential?.revision ?? 0 };
     }
     if (action === 'admin_attempt') {
+      if (payload.role !== 'owner' && payload.role !== 'master') throw Object.assign(new Error('Unauthorized admin'), { code: 'ADMIN_UNAUTHORIZED' });
       if (state.attempts.length >= 10) throw Object.assign(new Error('Too many attempts'), { code: 'ADMIN_RATE_LIMIT' });
       state.attempts.push(now);
     } else if (action === 'admin_login') {
@@ -52,6 +53,7 @@ export async function demoSettingsCall(action: string, payload: Record<string, u
       state.sessions[id].lastSeen = now;
     }
     let result: Record<string, unknown> = { success: true };
+    if (action === 'admin_attempt' && payload.role === 'owner') Object.assign(result, { hash: state.ownerCredential?.hash ?? null, revision: state.ownerCredential?.revision ?? 0 });
     if (action === 'admin_owner_credential_set') {
       if (state.sessions[id]?.role !== 'master' || Object.keys(payload).some(key => !['studioId', 'sessionId', 'hash', 'expectedRevision'].includes(key)) ||
           typeof payload.hash !== 'string' || !/^scrypt\$16384\$8\$1\$[a-f0-9]{32}\$[a-f0-9]{128}$/.test(payload.hash)) throw Object.assign(new Error('Unauthorized admin'), { code: 'ADMIN_UNAUTHORIZED' });

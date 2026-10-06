@@ -4,9 +4,13 @@ import { getStudioConfig } from './configuration';
 import { demoSettingsCall } from './demoStudioSettings';
 import { demoSheetCall } from './demoSheetIntegration';
 import { getServerConfig, isDemoMode } from '@/lib/serverConfig';
+import { performance } from 'node:perf_hooks';
+import { recordGasTiming } from './requestTiming';
 export class GasRequestError extends Error { constructor(public code: string) { super('백엔드 요청이 거부되었습니다.'); } }
 export type GasResult = Record<string, unknown> & { success: boolean; error?: string; code?: string };
 export async function signedGasCall(action: string, payload: Record<string, unknown>, webAppUrl?: string): Promise<GasResult> {
+    const start = performance.now();
+    try {
     if (isDemoMode()) {
       try { return await (action.startsWith('calendar_') ? demoCalendarCall : action.startsWith('sheet_') ? demoSheetCall : demoSettingsCall)(action, { ...payload, studioId: getStudioConfig().studioId }); }
       catch (error) { const code = (error as { code?: string }).code; if (code) throw new GasRequestError(code); throw error; }
@@ -38,4 +42,5 @@ export async function signedGasCall(action: string, payload: Record<string, unkn
       throw new Error('백엔드가 처리를 완료하지 못했습니다. 상태 확인이 필요합니다.');
     }
     return result;
+    } finally { recordGasTiming(start); }
 }

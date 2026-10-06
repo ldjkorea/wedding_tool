@@ -2,12 +2,11 @@
 import { clearDisabledFormFields, getConfiguredFieldErrors } from '@/lib/formFields';
 import { getStudioConfig, getDefaultProductId, isDiscountActive, getBrowserConfigurationBinding } from '@/services/configuration';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Header } from '@/components/ui/Header';
 import { MasterEntry } from '@/components/ui/MasterEntry';
 import { OwnerEntry } from '@/components/ui/OwnerEntry';
-import { HomeLandingView } from '@/components/home/HomeLandingView';
-import { ProductCatalogView } from '@/components/catalog/ProductCatalogView';
 import { TermsAgreementStep } from '@/components/contract-form/TermsAgreementStep';
 import { WeddingInfoSection } from '@/components/contract-form/WeddingInfoSection';
 import { CustomerInfoSection } from '@/components/contract-form/CustomerInfoSection';
@@ -17,8 +16,6 @@ import { DiscountBenefitSection } from '@/components/contract-form/DiscountBenef
 import { RequestNotesSection } from '@/components/contract-form/RequestNotesSection';
 import { PriceSummarySticky } from '@/components/contract-form/PriceSummarySticky';
 import { FinalConfirmStep } from '@/components/contract-form/FinalConfirmStep';
-import { SubmissionSuccessView } from '@/components/contract-form/SubmissionSuccessView';
-import { TermsModal } from '@/components/ui/TermsModal';
 import { ContractFormData } from '@/types/contract';
 import { calculateContractPrice } from '@/lib/pricing';
 import { ArrowLeft } from 'lucide-react';
@@ -26,6 +23,10 @@ import { usePartnerCodeVerification } from '@/components/contract-form/usePartne
 
 
 type ViewMode = 'home' | 'catalog' | 'terms' | 'form' | 'confirm' | 'success';
+const HomeLandingView = dynamic(() => import('@/components/home/HomeLandingView').then(module => module.HomeLandingView));
+const ProductCatalogView = dynamic(() => import('@/components/catalog/ProductCatalogView').then(module => module.ProductCatalogView));
+const SubmissionSuccessView = dynamic(() => import('@/components/contract-form/SubmissionSuccessView').then(module => module.SubmissionSuccessView));
+const TermsModal = dynamic(() => import('@/components/ui/TermsModal').then(module => module.TermsModal));
 
 export default function CustomerContractPage() {
   const studio = getStudioConfig();
@@ -67,7 +68,7 @@ export default function CustomerContractPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submittedReviewUrl, setSubmittedReviewUrl] = useState<string | undefined>();
+  const submissionPending = useRef(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const partnerVerification = usePartnerCodeVerification(formData.partnerName, isDiscountActive('partner'), (valid, amount) => {
     setFormData(previous => ({ ...previous, partnerDiscount: valid, partnerDiscountAmount: amount }));
@@ -118,7 +119,7 @@ export default function CustomerContractPage() {
     const errs: Record<string, string> = {};
 
     if (!formData.weddingDate) errs.weddingDate = '예식일을 선택해 주세요.';
-    if (!formData.weddingTime) errs.weddingTime = '예식 시간을 입력해 주세요.';
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(formData.weddingTime)) errs.weddingTime = '예식 시간은 13:00처럼 24시간 형식으로 입력해 주세요.';
     if (!formData.weddingVenue.trim()) errs.weddingVenue = '웨딩홀 명을 입력해 주세요.';
 
     if (!formData.groomName.trim()) errs.groomName = '신랑 성명을 입력해 주세요.';
@@ -152,14 +153,18 @@ export default function CustomerContractPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setViewMode('confirm');
     } else {
-      alert('필수 입력 항목을 모두 작성해 주세요.');
+      requestAnimationFrame(() => {
+        const invalid = document.querySelector<HTMLElement>('.customer-contract [aria-invalid="true"], .customer-contract [data-invalid="true"]');
+        invalid?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        invalid?.focus({ preventScroll: true });
+      });
     }
   };
 
   // 최종 제출 (POST /api/submit-contract)
   const handleSubmit = async () => {
-    if (isSubmitting || !validateForm()) return;
-
+    if (submissionPending.current || !validateForm()) return;
+    submissionPending.current = true;
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -176,13 +181,12 @@ export default function CustomerContractPage() {
         throw new Error(data.error || '계약정보 제출에 실패했습니다.');
       }
 
-      setSubmittedReviewUrl(data.reviewUrl);
       setViewMode('success');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setSubmitError(err.message || '네트워크 오류가 발생했습니다.');
-      alert(`제출 오류: ${err.message}`);
     } finally {
+      submissionPending.current = false;
       setIsSubmitting(false);
     }
   };
@@ -225,12 +229,17 @@ export default function CustomerContractPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[rgb(var(--studio-background))]">
+    <div className="customer-contract min-h-screen flex flex-col bg-[rgb(var(--studio-background))]">
       {/* 고정 브랜드 헤더 */}
       <Header ownerEntry dirty={viewMode === 'form' || viewMode === 'confirm'} />
 
       {/* 메인 컨텐츠 영역 */}
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6">
+        {viewMode !== 'home' && viewMode !== 'catalog' && <nav className="customer-progress" aria-label="계약 신청 단계">
+          {['약관 확인', '정보 입력', '최종 확인', '접수 완료'].map((label, index) => <span key={label} aria-current={index === ({terms:0,form:1,confirm:2,success:3} as Partial<Record<ViewMode,number>>)[viewMode] ? 'step' : undefined}><b>{index + 1}</b>{label}</span>)}
+        </nav>}
+        {Object.keys(errors).length > 0 && <div className="customer-error-summary" role="alert"><strong>입력 내용을 확인해 주세요.</strong><ul>{Object.entries(errors).map(([key, value]) => <li key={key}>{value}</li>)}</ul></div>}
+        {submitError && <p className="customer-error-summary" role="alert">{submitError}</p>}
 
         {/* ========================================================
             1. 홈 화면 (Home Landing View)
@@ -303,7 +312,6 @@ export default function CustomerContractPage() {
                 <ArrowLeft className="w-4 h-4" />
                 <span>약관 동의 단계로 돌아가기</span>
               </button>
-              <span className="text-xs text-[rgb(var(--studio-muted))]">Step 2 of 3 &bull; 정보 입력</span>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -321,7 +329,7 @@ export default function CustomerContractPage() {
                   </h2>
                   <p className="text-xs sm:text-sm text-[rgb(var(--studio-body))] mt-1.5 leading-relaxed">
                     상담이 완료된 고객님께 전달드리는 전용 페이지입니다.<br className="hidden sm:inline" />
-                    아래 정보를 작성해 주시면 확인 후 정식 계약서를 이메일로 보내드립니다.
+                    상담에서 확인한 예식일과 계약정보를 작성해 주세요. 대표 확인 후 정식 계약서를 이메일로 보내드립니다.
                   </p>
                 </div>
 
@@ -393,7 +401,7 @@ export default function CustomerContractPage() {
                   <button
                     type="button"
                     onClick={handleGoToConfirm}
-                    className="w-full h-14 bg-[rgb(var(--studio-primary))] text-[rgb(var(--studio-background))] rounded-2xl text-sm sm:text-base font-semibold hover:bg-[rgb(var(--studio-hover))] transition-colors shadow-sm flex items-center justify-center gap-2"
+                    className="hidden sm:flex w-full h-14 bg-[rgb(var(--studio-primary))] text-[rgb(var(--studio-background))] rounded-2xl text-sm sm:text-base font-semibold hover:bg-[rgb(var(--studio-hover))] transition-colors shadow-sm items-center justify-center gap-2"
                   >
                     <span>계약 내용 최종 확인하기</span>
                     <span>&rarr;</span>
@@ -414,6 +422,7 @@ export default function CustomerContractPage() {
               {/* 모바일 전용 하단 고정 바 */}
               <div className="lg:hidden">
                 <PriceSummarySticky
+                  inlineAction={false}
                   pricing={pricing}
                   onProceed={handleGoToConfirm}
                   proceedLabel="최종 확인하기"
@@ -437,6 +446,7 @@ export default function CustomerContractPage() {
             }}
             onSubmit={handleSubmit}
             isSubmitting={isSubmitting}
+            isVerifyingCode={partnerVerification.status === 'checking'}
           />
         )}
 
@@ -471,7 +481,7 @@ export default function CustomerContractPage() {
       </footer>
 
       {/* 약관 전문 열람 모달 */}
-      <TermsModal isOpen={isTermsOpen} onClose={() => setIsTermsOpen(false)} />
+      {isTermsOpen && <TermsModal isOpen onClose={() => setIsTermsOpen(false)} />}
     </div>
   );
 }

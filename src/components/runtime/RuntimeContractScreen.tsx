@@ -14,6 +14,6 @@ export function RuntimeContractScreen({ screen, settings, binding }: { screen: '
     document.documentElement.setAttribute('style', Object.entries(getThemeStyle(settings.studioConfig)).map(([key, value]) => key + ':' + value).join(';'));
     setReadyBinding(binding);
   }, [settings, binding]);
-  if (readyBinding !== binding) return <div className="p-8 text-center" role="status">계약 정보를 불러오고 있습니다.</div>;
+  if (readyBinding !== binding) return <div className="public-loading" role="status" aria-busy="true"><p>계약 정보를 불러오고 있습니다.</p><div /><div /></div>;
   return screen === 'customer' ? <Customer key={binding} /> : <Review key={binding} />;
 }

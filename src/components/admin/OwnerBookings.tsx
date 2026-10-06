@@ -5,6 +5,7 @@ import type { OwnerBooking } from '@/types/ownerBooking';
 
 import { BookingDetail, bookingStatusLabels as statuses } from './BookingDetail';
 import { ConsoleNavigation, ConsoleLoading } from './ConsolePrimitives';
+import { PasswordField } from '@/components/ui/PasswordField';
 const calendarStatuses = {
   disabled: '자동 등록 대상 아님',
   pending: '등록 대기',
@@ -48,6 +49,8 @@ export function OwnerBookings() {
   const [detail, setDetail] = useState<OwnerBooking | null>(null);
   const epoch = useRef(0),
     activity = useRef(Date.now());
+  const initialLoad = useRef(false);
+  const pending = useRef(false);
   const clear = useCallback(() => {
     epoch.current++;
     setAuthenticated(false);
@@ -58,6 +61,7 @@ export function OwnerBookings() {
   }, []);
   const api = useCallback(
     async (url: string, method = 'GET', body?: unknown) => {
+      const requestedEpoch = epoch.current;
       const response = await fetch('/api/owner-control/' + url, {
         method,
         cache: 'no-store',
@@ -67,7 +71,7 @@ export function OwnerBookings() {
       });
       const data = await response.json();
       if (response.status === 401) {
-        clear();
+        if (requestedEpoch === epoch.current) clear();
         throw new Error('비밀번호를 확인하거나 다시 로그인해 주세요.');
       }
       if (!response.ok || !data.success)
@@ -103,6 +107,8 @@ export function OwnerBookings() {
     [api],
   );
   useEffect(() => {
+    if (initialLoad.current) return;
+    initialLoad.current = true;
     const today = seoulDate();
     setMonth(today.slice(0, 7));
     load()
@@ -130,7 +136,8 @@ export function OwnerBookings() {
     };
   }, [authenticated, api, clear]);
   async function perform(task: () => Promise<void>) {
-    if (busy) return;
+    if (pending.current) return;
+    pending.current = true;
     setBusy(true);
     setMessage('');
     try {
@@ -138,6 +145,7 @@ export function OwnerBookings() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '연결을 확인해 주세요.');
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
@@ -175,17 +183,15 @@ export function OwnerBookings() {
               });
             }}
           >
-            <label htmlFor="owner-pin">비밀번호 6자리</label>
-            <input
+            <PasswordField
+              label="비밀번호 6자리"
               id="owner-pin"
               disabled={busy || loading}
               className="owner-input booking-pin"
-              type="password"
               inputMode="numeric"
               pattern="[0-9]{6}"
               minLength={6}
               maxLength={6}
-              autoComplete="current-password"
               value={pin}
               onChange={(event) => setPin(event.target.value.replace(/\D/g, ''))}
               required

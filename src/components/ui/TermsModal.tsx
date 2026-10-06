@@ -1,5 +1,5 @@
 import { getContractPolicy, formatPolicyDays } from '@/services/configuration';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, FileText } from 'lucide-react';
 
 
@@ -10,10 +10,17 @@ interface TermsModalProps {
 
 export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose }) => {
   const CONTRACT_POLICY_CONFIG = getContractPolicy();
+  const modal = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null, overflow = document.body.style.overflow;
+    modal.current?.showModal(); document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = overflow; previous?.focus(); };
+  }, [isOpen]);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
+    <dialog ref={modal} aria-label="본식스냅 촬영 계약 약관" className="customer-terms-dialog" onCancel={event => { event.preventDefault(); onClose(); }}>
       <div className="bg-[#FFFFFF] border border-[rgb(var(--studio-border))] rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         {/* 모달 헤더 */}
         <div className="px-6 py-5 border-b border-[rgb(var(--studio-surface))] flex items-center justify-between bg-[rgb(var(--studio-background))]">
@@ -69,6 +76,6 @@ export const TermsModal: React.FC<TermsModalProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

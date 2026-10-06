@@ -11,6 +11,7 @@ interface FinalConfirmStepProps {
   onBack: () => void;
   onSubmit: () => void;
   isSubmitting: boolean;
+  isVerifyingCode?: boolean;
 }
 
 export const FinalConfirmStep: React.FC<FinalConfirmStepProps> = ({
@@ -19,6 +20,7 @@ export const FinalConfirmStep: React.FC<FinalConfirmStepProps> = ({
   onBack,
   onSubmit,
   isSubmitting,
+  isVerifyingCode = false,
 }) => {
   const formData = clearDisabledFormFields(inputData);
   const product = getProductById(formData.productId);
@@ -230,10 +232,10 @@ export const FinalConfirmStep: React.FC<FinalConfirmStepProps> = ({
         <button
           type="button"
           onClick={onSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || isVerifyingCode}
           className="flex-1 h-12 bg-[rgb(var(--studio-primary))] text-[rgb(var(--studio-background))] rounded-xl text-xs sm:text-sm font-semibold hover:bg-[rgb(var(--studio-hover))] transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
         >
-          {isSubmitting ? (
+          {isVerifyingCode ? <span role="status">할인코드 확인 중…</span> : isSubmitting ? (
             <div className="flex items-center gap-2">
               <span className="w-4 h-4 border-2 border-[rgb(var(--studio-background))] border-t-transparent rounded-full animate-spin" />
               <span>전달 중...</span>

@@ -238,6 +238,7 @@ body {
 .console-service-summary strong { font-size:20px; margin-top:6px; }
 .console-dialog { text-align:left; color:var(--admin-ink); background:#fff; border:1px solid var(--admin-line); border-radius:20px; padding:28px; width:min(460px,calc(100% - 32px)); max-height:90dvh; overflow:auto; box-shadow:0 24px 80px #0002; }
 .console-dialog::backdrop { background:rgba(20,20,20,.4); }
+.console-wide { width:min(720px,calc(100% - 32px)); }
 .console-dialog-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:24px; }
 .console-dialog-header h2 { font-size:22px; font-weight:600; }
 .console-auth-form { margin-top:24px; }
@@ -269,3 +270,50 @@ body {
   .admin-workspace .admin-toolbar>div { flex-wrap:wrap; }.console-dialog-actions .owner-button { flex:1; }
 }
 @media(prefers-reduced-motion:reduce) { .console-skeleton { animation:none; } }
+
+/* Shared interaction rules; scoped away from the fixed PDF document. */
+.password-field { width:100%; }
+.password-input-row { position:relative; }
+.admin-workspace .password-input-row input { padding-right:64px; font-size:16px; }
+.password-toggle { position:absolute; right:4px; top:4px; bottom:4px; min-width:52px; min-height:44px; border-radius:8px; font-size:14px; font-weight:500; color:var(--admin-muted); }
+.password-toggle:disabled { opacity:.5; }
+.master-mobile-menu { display:none; }
+.master-recovery select { max-width:100%; min-height:44px; font-size:16px; }
+.console-service-summary small { color:var(--admin-muted); font-size:13px; margin-top:6px; }
+.public-loading { width:min(900px,100%); padding:40px 24px; margin:0 auto; color:rgb(var(--studio-body)); }
+.public-loading p { margin-bottom:24px; }
+.public-loading div { height:64px; border-radius:16px; background:rgb(var(--studio-surface)); margin-top:16px; }
+.public-loading div:last-child { width:70%; }
+.customer-progress { display:flex; justify-content:space-between; gap:8px; margin:4px 0 24px; padding:14px 0; border-bottom:1px solid rgb(var(--studio-border)); }
+.customer-progress span { display:flex; align-items:center; gap:6px; color:rgb(var(--studio-body)); font-size:13px; }
+.customer-progress b { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; border:1px solid rgb(var(--studio-border)); font-weight:500; }
+.customer-progress [aria-current="step"] { font-weight:600; color:rgb(var(--studio-primary)); }
+.customer-progress [aria-current="step"] b { background:rgb(var(--studio-primary)); color:#fff; }
+.customer-error-summary { padding:16px 20px; margin-bottom:24px; border:1px solid #d6ada4; border-radius:14px; background:#fff8f5; color:#8c3527; font-size:14px; }
+.customer-error-summary ul { margin-top:8px; padding-left:20px; list-style:disc; }
+.customer-contract :is(button,input,select,textarea,[role="checkbox"],a,summary):focus-visible { outline:3px solid rgb(var(--studio-accent)); outline-offset:3px; }
+.customer-contract :is(button,[role="checkbox"],summary) { min-height:44px; }
+.customer-terms-dialog { width:min(672px,calc(100% - 24px)); padding:0; max-height:90dvh; border:0; border-radius:16px; background:white; }
+.customer-terms-dialog::backdrop { background:#0006; }
+.customer-terms-dialog>div { max-height:90dvh; }
+.customer-calendar-dialog { width:min(384px,calc(100% - 24px)); max-height:90dvh; border:0; padding:0; border-radius:24px; background:rgb(var(--studio-background)); }
+.customer-calendar-dialog::backdrop { background:#0006; }
+@media(max-width:900px) {
+  .admin-workspace .master-desktop-menu { display:none; }
+  .master-mobile-menu { display:grid; gap:8px; margin-bottom:20px; }
+  .master-mobile-menu select { width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--admin-line); border-radius:12px; background:#fff; font-size:16px; }
+  .calendar-entry { font-size:12px; }
+  .admin-workspace select:not([multiple]), .admin-workspace textarea, .admin-workspace input:not([type="checkbox"]):not([type="color"]) { font-size:16px; }
+}
+@media(max-width:639px) {
+  .customer-contract { padding-bottom:calc(92px + env(safe-area-inset-bottom)); }
+  .customer-contract :is(input,textarea,select) { font-size:16px; }
+  .customer-contract :is(.text-xs,.text-sm) { font-size:14px; line-height:1.65; }
+  .customer-contract main>div .p-6 { padding:20px; }
+  .customer-progress { gap:4px; }
+  .customer-progress span { display:grid; justify-items:center; gap:6px; font-size:12px; }
+  .console-service-summary { grid-template-columns:1fr; gap:8px; }
+  .console-service-summary>div { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; padding:14px 16px; }
+  .console-service-summary strong { margin:0 0 0 12px; }
+  .console-service-summary small { width:100%; }
+}

@@ -58,12 +58,14 @@ export const WeddingInfoSection: React.FC<WeddingInfoSectionProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 sm:gap-5">
         {/* 예식일 (터치/클릭 시 전용 달력 팝업 오픈 - 좌우로 더 길게 sm:col-span-7) */}
         <div className="sm:col-span-7">
-          <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+          <label htmlFor="contract-field-weddingDate" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
             예식일 <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <button
               type="button"
+              id="contract-field-weddingDate" data-invalid={!!errors.weddingDate} aria-describedby={errors.weddingDate ? 'wedding-date-error' : undefined} aria-haspopup="dialog" aria-expanded={isCalendarOpen}
+              aria-label={'예식일 선택 — ' + (weddingDate ? formatKoreanDate(weddingDate) : '날짜를 눌러 달력에서 선택해 주세요')}
               onClick={() => setIsCalendarOpen(true)}
               className={`w-full h-12 px-3.5 bg-[#FFFFFF] border ${
                 errors.weddingDate
@@ -89,7 +91,7 @@ export const WeddingInfoSection: React.FC<WeddingInfoSectionProps> = ({
             </button>
           </div>
           {errors.weddingDate && (
-            <p className="text-xs text-red-500 mt-1.5 font-medium">{errors.weddingDate}</p>
+            <p id="wedding-date-error" className="text-xs text-red-500 mt-1.5 font-medium">{errors.weddingDate}</p>
           )}
 
           {/* 달력 모달 컴포넌트 */}
@@ -103,11 +105,12 @@ export const WeddingInfoSection: React.FC<WeddingInfoSectionProps> = ({
 
         {/* 예식시간 (자유 텍스트 입력창 - 좌우로 좀 더 좁게 sm:col-span-5) */}
         <div className="sm:col-span-5">
-          <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+          <label htmlFor="contract-field-weddingTime" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
             예식 시간 <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <input
+              id="contract-field-weddingTime" required aria-required="true" aria-invalid={!!errors.weddingTime} inputMode="text" maxLength={5}
               type="text"
               placeholder="예: 13:00 (24시간 형식)"
               value={weddingTime}
@@ -134,11 +137,12 @@ export const WeddingInfoSection: React.FC<WeddingInfoSectionProps> = ({
 
         {/* 웨딩홀 명 */}
         <div className="sm:col-span-6">
-          <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+          <label htmlFor="contract-field-weddingVenue" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
             웨딩홀 명 <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
+            id="contract-field-weddingVenue" required aria-required="true" aria-invalid={!!errors.weddingVenue}
             placeholder="예: 더채플앳청담, 엘타워, 빌라드지디"
             value={weddingVenue}
             onChange={(e) => onChange({ weddingVenue: e.target.value })}

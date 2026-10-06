@@ -30,6 +30,7 @@ let server: ChildProcess | undefined,
   output = '';
 const results: { name: string; status: string; error?: string }[] = [],
   errors: string[] = [];
+const detailTimings: { width: number; readyMs: number }[] = [];
 async function test(name: string, task: () => Promise<void>) {
   try {
     await task();
@@ -130,6 +131,9 @@ async function main() {
     const input = page.getByLabel('비밀번호 6자리');
     assert.equal(await input.getAttribute('inputmode'), 'numeric');
     assert.equal(await input.getAttribute('type'), 'password');
+    await page.getByRole('button',{name:'입력한 비밀번호 표시',exact:true}).click();
+    assert.equal(await input.getAttribute('type'),'text');
+    await page.getByRole('button',{name:'입력한 비밀번호 숨기기',exact:true}).click();
     await input.fill(pin === '999999' ? '999998' : '999999');
     await page.getByRole('button', { name: '로그인', exact: true }).click();
     await page.getByRole('alert').waitFor();
@@ -193,7 +197,7 @@ async function main() {
     );
   });
   await test('Mobile and desktop have no overflow with stacked/side-by-side calendar layout', async () => {
-    for (const width of [320, 390, 768, 1024, 1440]) {
+    for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 1000 });
       const layout = await page.evaluate(() => {
         const a = document.querySelector('.booking-calendar')!.getBoundingClientRect(),
@@ -216,12 +220,14 @@ async function main() {
   await test('Detail drawer uses original data, closes with ESC and retains calendar selection without sending mail', async () => {
     const before = await (await context.request.get(origin + '/api/demo/mailbox')).json();
     await page.getByRole('button', {name: date + ' 예약 1건', exact:true}).click();
-    for (const width of [390,1440]) {
+    for (const width of [320,360,390,430,768,1440]) {
       await page.setViewportSize({width,height:1000});
+      const started = Date.now();
       await page.getByRole('button', {name:'예약 상세',exact:true}).click();
       const dialog = page.getByRole('dialog',{name:'예약 상세',exact:true});
       await dialog.getByText('booking-mobile@example.com',{exact:true}).waitFor();
       await dialog.getByRole('link',{name:'예약 확인·수정 및 승인'}).waitFor();
+      detailTimings.push({width,readyMs:Date.now()-started});
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false);
       await page.screenshot({path:path.join(artifacts,'detail-'+width+'.png'),fullPage:false});
       await page.keyboard.press('Escape'); await dialog.waitFor({state:'detached'});
@@ -231,6 +237,7 @@ async function main() {
     assert.deepEqual(after,before);
   });
   await test('Hidden Master entry enforces rolling time window, cancellation, errors and separate authentication', async () => {
+    await page.setViewportSize({width:390,height:844});
     assert.equal((await context.request.get(origin+'/api/master-control/settings')).status(),401);
     await page.goto(origin);
     const copyright = page.getByRole('button',{name:/Copyright/});
@@ -253,8 +260,15 @@ async function main() {
     await dialog.getByRole('button',{name:'로그인',exact:true}).click();
     await page.waitForURL('**/master-control');
     await page.getByRole('region',{name:'서비스 상태'}).waitFor();
+    await page.getByLabel('관리 메뉴',{exact:true}).waitFor();
     assert.equal((await context.request.get(origin+'/api/master-control/settings')).status(),200);
     await page.screenshot({path:path.join(artifacts,'master-console.png'),fullPage:true});
+    await page.setViewportSize({width:1440,height:1000}); await page.goto(origin);
+    for(let i=0;i<5;i++) await page.getByRole('button',{name:/Copyright/}).click();
+    await page.getByRole('dialog',{name:'관리자 인증'}).getByLabel('관리자 비밀번호').fill(masterPassword);
+    await page.getByRole('dialog',{name:'관리자 인증'}).getByRole('button',{name:'로그인',exact:true}).click();
+    await page.waitForURL('**/master-control'); await page.getByRole('region',{name:'서비스 상태'}).waitFor();
+    assert.equal(await page.getByRole('navigation',{name:'설정 메뉴'}).isVisible(),true);
     await page.goto(origin+'/owner'); await page.getByRole('button',{name:'대표 확인 대기 1건',exact:true}).click();
   });
   await test('Authenticated Review uses same contract without token URL and GET does not send', async () => {
@@ -309,6 +323,7 @@ main()
           failed: results.filter((x) => x.status === 'failed').length,
           results,
           errors,
+          detailTimings,
           realGoogleIO: false,
           physicalMobile: false,
         },

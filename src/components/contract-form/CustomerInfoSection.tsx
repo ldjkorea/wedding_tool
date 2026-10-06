@@ -54,11 +54,12 @@ export const CustomerInfoSection: React.FC<CustomerInfoSectionProps> = ({
         </span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+            <label htmlFor="contract-field-groomName" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
               신랑 성명 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              id="contract-field-groomName" aria-invalid={!!errors.groomName} required aria-required="true" autoComplete="name"
               placeholder="예: 김민우"
               value={groomName}
               onChange={(e) => onChange({ groomName: e.target.value })}
@@ -137,11 +138,12 @@ export const CustomerInfoSection: React.FC<CustomerInfoSectionProps> = ({
         </span>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+            <label htmlFor="contract-field-brideName" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
               신부 성명 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
+              id="contract-field-brideName" aria-invalid={!!errors.brideName} required aria-required="true" autoComplete="name"
               placeholder="예: 이서연"
               value={brideName}
               onChange={(e) => onChange({ brideName: e.target.value })}
@@ -214,13 +216,14 @@ export const CustomerInfoSection: React.FC<CustomerInfoSectionProps> = ({
 
       {/* 수신 이메일 */}
       <div>
-        <label className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
+        <label htmlFor="contract-field-email" className="block text-xs sm:text-sm font-semibold text-[rgb(var(--studio-primary))] mb-2">
           계약서 수신 이메일 <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <input
             type="email"
-            placeholder="example@naver.com"
+            id="contract-field-email" aria-invalid={!!errors.email} required aria-required="true" autoComplete="email" inputMode="email"
+              placeholder="example@naver.com"
             value={email}
             onChange={(e) => onChange({ email: e.target.value })}
             className={`w-full h-12 px-3.5 bg-[#FFFFFF] border ${

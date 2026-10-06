@@ -280,6 +280,12 @@ export const TermsAgreementStep: React.FC<TermsAgreementStepProps> = ({
         )}
 
         <div
+          role="checkbox"
+          tabIndex={0}
+          aria-checked={termsAgreed}
+          aria-disabled={!hasScrolledToBottom}
+          aria-label="계약 약관 및 운영 정책 동의"
+          onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); handleCheckboxClick(); } }}
           onClick={handleCheckboxClick}
           className={`p-4 sm:p-5 rounded-2xl border transition-all flex items-start gap-3.5 select-none ${
             !hasScrolledToBottom

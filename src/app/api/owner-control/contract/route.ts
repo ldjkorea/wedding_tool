@@ -1,3 +1,4 @@
+import { measureRoute } from '@/services/requestTiming';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   requireAdmin,
@@ -11,9 +12,9 @@ import { getBackendAdapter } from '@/services/googleAppsScriptAdapter';
 import { readJsonRequest } from '@/lib/apiSafety';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
-export async function GET(req: NextRequest) {
+export const GET = measureRoute(async (req: NextRequest) => {
   try {
-    const sessionId = await requireAdmin(req, 'owner'),
+    const sessionId = await requireAdmin(req, 'owner', true),
       id = req.nextUrl.searchParams.get('id') || '';
     return await withRuntimeConfiguration(() =>
       withOwnerReview(sessionId, id, async () =>
@@ -23,11 +24,11 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     return adminError(error);
   }
-}
-export async function POST(req: NextRequest) {
+});
+export const POST = measureRoute(async (req: NextRequest) => {
   try {
     adminOrigin(req);
-    const sessionId = await requireAdmin(req, 'owner');
+    const sessionId = await requireAdmin(req, 'owner', true);
     const body = await readJsonRequest(req, 15000000);
     if (
       Object.keys(body).some(
@@ -64,4 +65,4 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return adminError(error);
   }
-}
+});

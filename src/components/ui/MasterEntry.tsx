@@ -2,6 +2,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { ConsoleDialog } from '@/components/admin/ConsolePrimitives';
+import { PasswordField } from './PasswordField';
 
 export function MasterEntry({ children, dirty = false }: { children: ReactNode; dirty?: boolean }) {
   const clicks = useRef<number[]>([]), pending = useRef(false);
@@ -31,8 +32,7 @@ export function MasterEntry({ children, dirty = false }: { children: ReactNode; 
     {open && <ConsoleDialog title="관리자 인증" onClose={close} busy={busy}>
       <p className="booking-muted">관리자 비밀번호를 입력해 주세요.</p>
       <form className="console-auth-form" onSubmit={event => { event.preventDefault(); void login(); }}>
-        <label htmlFor="hidden-master-password">관리자 비밀번호</label>
-        <input id="hidden-master-password" className="owner-input" type="password" autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} required disabled={busy} />
+        <PasswordField id="hidden-master-password" label="관리자 비밀번호" value={password} onChange={event => setPassword(event.target.value)} required disabled={busy} />
         {error && <p role="alert" className="booking-error">{error}</p>}
         <div className="console-dialog-actions"><button type="button" className="owner-button" disabled={busy} onClick={close}>취소</button><button className="owner-button admin-primary" disabled={busy || !password}>{busy ? '확인 중…' : '로그인'}</button></div>
       </form>

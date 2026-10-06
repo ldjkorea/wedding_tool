@@ -244,7 +244,11 @@ async function main() {
     await customer.getByRole('button', { name: /^계약 내용 최종 확인하기/ }).click();
     const submitted = customer.waitForResponse((response: any) => response.url().endsWith('/api/submit-contract') && response.request().method() === 'POST');
     await customer.getByRole('button', { name: '계약정보 제출하기', exact: true }).click();
-    const submissionResponse = await submitted;
+    const submissionResponse = await submitted.catch(async (error: Error) => {
+      await customer.screenshot({path:path.join(artifacts,'customer-submit-failure.png'),fullPage:true});
+      const alerts = await customer.getByRole('alert').allTextContents();
+      throw new Error('Customer submission did not start: '+JSON.stringify(alerts),{cause:error});
+    });
     assert.equal(submissionResponse.status(), 200, await submissionResponse.text());
     await customer.getByText('계약 신청이 정상 접수되었습니다', { exact: false }).waitFor();
     await customer.close();
@@ -282,13 +286,44 @@ async function main() {
     await page.unroute('**/api/master-control/sheet-integration*');
     await page.getByRole('button',{name:'동기화 상태 확인',exact:true}).click();await page.getByRole('region', { name: 'Google Sheets 계약목록', exact: true }).getByText('사용 안 함', { exact: true }).waitFor();
   });
-  await test('Mobile sees guidance only and performs no settings requests', async () => {
+  await test('Mobile Master uses same password, edits and restores safe settings, all menus fit 320–tablet', async () => {
     const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true });
     const mobilePage = await mobile.newPage(), requests: string[] = [];
     mobilePage.on('request', (req: any) => { if (req.url().includes('/api/master-control/')) requests.push(req.url()); });
-    await mobilePage.goto(origin + '/master-control'); await mobilePage.getByText('관리자 설정은 PC에서 이용해 주세요.', { exact: true }).waitFor();
-    assert.equal(await mobilePage.locator('input').count(), 0); assert.deepEqual(requests, []);
-    await mobilePage.screenshot({ path: path.join(artifacts, 'admin-mobile-guidance.png'), fullPage: true }); await mobile.close();
+    await mobilePage.goto(origin + '/master-control'); await mobilePage.getByLabel('관리자 비밀번호', { exact:true }).waitFor();
+    assert.equal((await mobile.request.get(origin+'/api/master-control/settings')).status(),401);
+    await mobilePage.getByLabel('관리자 비밀번호',{exact:true}).fill(password);
+    await mobilePage.getByRole('button',{name:'입력한 비밀번호 표시',exact:true}).click();
+    assert.equal(await mobilePage.getByLabel('관리자 비밀번호',{exact:true}).getAttribute('type'),'text');
+    await mobilePage.getByRole('button',{name:'입력한 비밀번호 숨기기',exact:true}).click();
+    await mobilePage.getByRole('button',{name:'로그인',exact:true}).click();
+    await mobilePage.getByRole('region',{name:'서비스 상태'}).waitFor();
+    assert.equal(await mobilePage.getByRole('link',{name:'예약 관리',exact:true}).count(),0);
+    for (const width of [320,360,390,430,768]) {
+      await mobilePage.setViewportSize({width,height:900});
+      for (const key of ['studioConfig','productsConfig','optionsConfig','discountsConfig','contractPolicy','formSchema','content','ownerPassword','integration']) {
+        await mobilePage.getByLabel('관리 메뉴',{exact:true}).selectOption(key);
+        if(key==='integration') await mobilePage.locator('.integration-grid').first().waitFor();
+        assert.equal(await mobilePage.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,key+' at '+width);
+      }
+    }
+    await mobilePage.setViewportSize({width:390,height:844});
+    await mobilePage.getByLabel('관리 메뉴',{exact:true}).selectOption('studioConfig');
+    const previous = JSON.parse(fs.readFileSync(file,'utf8')).current;
+    await mobilePage.getByLabel('브랜드 문구',{exact:true}).fill('TEST 모바일 총관리자 안내');
+    await mobilePage.getByRole('button',{name:'전체 변경 저장',exact:true}).click();
+    await mobilePage.getByRole('button',{name:'변경사항 저장',exact:true}).click();
+    await mobilePage.getByRole('status').filter({hasText:'설정 저장 및 재조회가 완료되었습니다.'}).waitFor();
+    assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).current.actor,'master');
+    assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).current.revision,previous.revision+1);
+    await mobilePage.getByLabel('복구 revision').selectOption(String(previous.revision));
+    mobilePage.once('dialog',(dialog:any)=>dialog.accept());
+    await mobilePage.getByRole('button',{name:'복구',exact:true}).click();
+    await mobilePage.getByRole('status').filter({hasText:'이전 설정 복구 완료'}).waitFor();
+    assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).current.revision,previous.revision+2);
+    assert.equal(JSON.parse(fs.readFileSync(file,'utf8')).current.settings.studioConfig.brandTagline,previous.settings.studioConfig.brandTagline);
+    assert.ok(requests.length>0);
+    await mobilePage.screenshot({ path: path.join(artifacts, 'admin-mobile-console.png'), fullPage: true }); await mobile.close();
   });
   await test('Logout removes settings UI; copied browser cookie is revoked at backend', async () => {
     const cookies = await context.cookies(); const cookie = cookies.find((item: any) => item.name === 'studio_admin_session'); assert.ok(cookie?.httpOnly);
@@ -304,7 +339,7 @@ async function main() {
     assert.deepEqual(errors, []);
   });
   await test('Core field policy retained and persisted file contains only local Demo data', async () => {
-    const stored = JSON.parse(fs.readFileSync(file, 'utf8')); assert.equal(stored.current.revision, 6);
+    const stored = JSON.parse(fs.readFileSync(file, 'utf8')); assert.equal(stored.current.revision, 8);
     assert.equal(stored.current.settings.formSchema.weddingHall.enabled, getFormSchema().weddingHall.enabled);
     assert.ok(!JSON.stringify(stored.current).includes(passwordHash));
   });
